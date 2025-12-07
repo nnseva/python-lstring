@@ -233,38 +233,51 @@ static PyObject* LStr_sq_repeat(PyObject *self, Py_ssize_t count) {
 
 // ---------- Multiplication (operator *) ----------
 static PyObject* LStr_mul(PyObject *left, PyObject *right) {
-    // One operand must be lstr, the other must be int
     PyObject *lstr_obj = nullptr;
     PyObject *count_obj = nullptr;
 
-    if (PyLong_Check(right) && PyObject_TypeCheck(left, (PyTypeObject*)Py_TYPE(left))) {
+    // Decide which operand is the index
+    if (PyLong_Check(right)) {
         lstr_obj = left;
         count_obj = right;
-    } else if (PyLong_Check(left) && PyObject_TypeCheck(right, (PyTypeObject*)Py_TYPE(right))) {
+    } else if (PyLong_Check(left)) {
         lstr_obj = right;
         count_obj = left;
     } else {
-        PyErr_SetString(PyExc_TypeError, "multiplication requires lstr and int");
+        PyErr_SetString(PyExc_TypeError,
+                        "lstr multiplication requires an integer operand");
         return nullptr;
     }
 
-    PyTypeObject *type = (PyTypeObject*)Py_TYPE(lstr_obj);
-    LStrObject *self = (LStrObject*)type->tp_alloc(type, 0);
-    if (!self) return nullptr;
+    // Convert directly to Py_ssize_t
+    Py_ssize_t repeat_count = PyLong_AsSsize_t(count_obj);
+    if (repeat_count == -1 && PyErr_Occurred()) {
+        return nullptr;
+    }
+    if (repeat_count < 0) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "lstr repeat count must be non-negative");
+        return nullptr;
+    }
+
+    // Allocate result
+    PyTypeObject *type = Py_TYPE(lstr_obj);
+    LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
+    if (!result) return nullptr;
 
     try {
-        self->buffer = new MulBuffer(lstr_obj, count_obj);
+        result->buffer = new MulBuffer(lstr_obj, repeat_count);
     } catch (const std::exception &e) {
-        Py_DECREF((PyObject*)self);
+        Py_DECREF((PyObject*)result);
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
     } catch (...) {
-        Py_DECREF((PyObject*)self);
-        PyErr_SetString(PyExc_RuntimeError, "MulBuffer allocation failed");
+        Py_DECREF((PyObject*)result);
+        PyErr_SetString(PyExc_RuntimeError, "lstr multiplication failed");
         return nullptr;
     }
 
-    return (PyObject*)self;
+    return (PyObject*)result;
 }
 
 // ---------- Conversion to Python str ----------
