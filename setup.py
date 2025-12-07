@@ -4,9 +4,15 @@ from setuptools.command.build_ext import build_ext
 ext_modules = [
     Extension(
         name='lstring',
-        sources=['lstring.cxx'],
+        sources=['src/lstring.cxx'],
         include_dirs=['.'],
-        depends=['buffer.hxx', 'join_buffer.hxx', 'mul_buffer.hxx', 'slice_buffer.hxx', 'lstring.hxx'],
+        depends=[
+            'src/buffer.hxx',
+            'src/join_buffer.hxx',
+            'src/mul_buffer.hxx',
+            'src/slice_buffer.hxx',
+            'src/lstring.hxx'
+        ],
         language='c++',
     ),
 ]
