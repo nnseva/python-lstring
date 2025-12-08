@@ -9,7 +9,7 @@
 #include "buffer.hxx"
 
 // ============================================================
-// MulBuffer — повторение строки
+// MulBuffer — string repetition
 // ============================================================
 class MulBuffer : public Buffer {
 private:

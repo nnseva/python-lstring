@@ -1,10 +1,6 @@
 // lstring.cxx
 //
-// Python C++ extension defining module "lstring" with class "lstr".
-// Uses buffer.hxx classes (Str8Buffer, Str16Buffer, Str32Buffer) and join_buffer.hxx (JoinBuffer).
-// Constructor of lstr requires a Python str argument.
-// Supports concatenation via operator + (Py_nb_add).
-// Supports conversion to Python str via Py_tp_str.
+// Python C++ extension defining lstring.lstr class - lazy string.
 
 #include "lstring.hxx"
 #include "buffer.hxx"
@@ -28,6 +24,7 @@ static inline lstring_state* get_lstring_state(PyObject *module) {
 // ---------- Type methods ----------
 static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static void LStr_dealloc(LStrObject *self);
+static Py_hash_t LStr_hash(LStrObject *self);
 static PyObject* LStr_repr(LStrObject *self);
 static PyObject* LStr_add(PyObject *left, PyObject *right);
 static PyObject* LStr_mul(PyObject *left, PyObject *right);
@@ -35,16 +32,20 @@ static PyObject* LStr_str(LStrObject *self);
 static Py_ssize_t LStr_sq_length(PyObject *self);
 static PyObject* LStr_sq_repeat(PyObject *self, Py_ssize_t count);
 static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key);
+static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op);
+
 
 // ---------- Type slots ----------
 static PyType_Slot LStr_slots[] = {
     {Py_tp_new,       (void*)LStr_new},
     {Py_tp_dealloc,   (void*)LStr_dealloc},
+    {Py_tp_hash,      (void*)LStr_hash},
     {Py_tp_repr,      (void*)LStr_repr},
     {Py_tp_str,       (void*)LStr_str},   // conversion to str
     {Py_tp_doc,       (void*)"lstr is a lazy string class that defers direct access to its internal buffer"},
     {Py_nb_add,       (void*)LStr_add},   // operator +
     {Py_nb_multiply,  (void*)LStr_mul},   // operator *
+    {Py_tp_richcompare, (void*)LStr_richcompare},
 
     // Sequence protocol
     {Py_sq_length, (void*)LStr_sq_length},
@@ -115,6 +116,14 @@ static void LStr_dealloc(LStrObject *self) {
     delete self->buffer;
     self->buffer = nullptr;
     Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+static Py_hash_t LStr_hash(LStrObject *self) {
+    if (!self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
+        return -1;
+    }
+    return self->buffer->hash();
 }
 
 static PyObject* LStr_repr(LStrObject *self) {
@@ -278,6 +287,43 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
     }
 
     return (PyObject*)result;
+}
+
+// ---------- Compare ----------
+static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
+    if (Py_TYPE(a) != Py_TYPE(b)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    LStrObject *la = (LStrObject*)a;
+    LStrObject *lb = (LStrObject*)b;
+    Buffer *ba = la->buffer;
+    Buffer *bb = lb->buffer;
+
+    if (!ba || !bb) {
+        PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
+        return nullptr;
+    }
+
+    // Optimize equality/inequality with hash
+    if (op == Py_EQ || op == Py_NE) {
+        if (ba->hash() != bb->hash()) {
+            if (op == Py_EQ) Py_RETURN_FALSE;
+            else Py_RETURN_TRUE;
+        }
+    }
+
+    int cmp = ba->cmp(bb);
+
+    switch (op) {
+        case Py_EQ: if (cmp == 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+        case Py_NE: if (cmp != 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+        case Py_LT: if (cmp < 0)  Py_RETURN_TRUE; else Py_RETURN_FALSE;
+        case Py_LE: if (cmp <= 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+        case Py_GT: if (cmp > 0)  Py_RETURN_TRUE; else Py_RETURN_FALSE;
+        case Py_GE: if (cmp >= 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
+        default: Py_RETURN_NOTIMPLEMENTED;
+    }
 }
 
 // ---------- Conversion to Python str ----------

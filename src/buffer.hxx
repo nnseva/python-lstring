@@ -4,6 +4,7 @@
 #include <Python.h>
 #include <stdexcept>
 #include <cstdint>
+#include <cstring>
 
 // ============================================================
 // Abstract Buffer
@@ -26,7 +27,11 @@ protected:
     inline const uint32_t* as_ucs4(PyObject* s) const {
         return reinterpret_cast<const uint32_t*>(PyUnicode_DATA(s));
     }
+
+    Py_hash_t cached_hash;  // cache for computed hash
+
 public:
+    Buffer() : cached_hash(-1) {}
     virtual ~Buffer() {}
 
     virtual Py_ssize_t length() const = 0;
@@ -37,8 +42,48 @@ public:
     virtual void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const = 0;
     virtual void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const = 0;
 
-    // Новый абстрактный метод для отладочного представления
     virtual PyObject* repr() const = 0;
+
+    // non-const hash with caching
+    Py_hash_t hash() {
+        if (cached_hash != -1) {
+            return cached_hash;
+        }
+        cached_hash = compute_hash();
+        return cached_hash;
+    }
+
+    // alfanumeric comparison
+    int cmp(const Buffer* other) const {
+        Py_ssize_t len1 = length();
+        Py_ssize_t len2 = other->length();
+        Py_ssize_t minlen = (len1 < len2) ? len1 : len2;
+
+        for (Py_ssize_t i = 0; i < minlen; ++i) {
+            uint32_t c1 = value(i);
+            uint32_t c2 = other->value(i);
+            if (c1 < c2) return -1;
+            if (c1 > c2) return 1;
+        }
+        if (len1 < len2) return -1;
+        if (len1 > len2) return 1;
+        return 0;
+    }
+
+private:
+    Py_hash_t compute_hash() const {
+        Py_ssize_t len = length();
+        Py_hash_t x = 0;
+        Py_hash_t mult = 31;  // multiplier
+        for (Py_ssize_t i = 0; i < len; i++) {
+            uint32_t ch = value(i);
+            x = x * mult + ch;
+        }
+        if (x == -1) {
+            x = -2;  // avoid reserved error value
+        }
+        return x;
+    }
 };
 
 // ============================================================
@@ -80,9 +125,8 @@ public:
         }
     }
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        for (Py_ssize_t i = 0; i < count; ++i) {
-            target[i] = static_cast<uint8_t>(PyUnicode_READ_CHAR(py_str, start + i));
-        }
+        const uint8_t *src = as_ucs1(py_str) + start;
+        std::memcpy(target, src, count * sizeof(uint8_t));
     }
 
     PyObject* repr() const override {
@@ -124,9 +168,8 @@ public:
         }
     }
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        for (Py_ssize_t i = 0; i < count; ++i) {
-            target[i] = static_cast<uint16_t>(PyUnicode_READ_CHAR(py_str, start + i));
-        }
+        const uint16_t *src = as_ucs2(py_str) + start;
+        std::memcpy(target, src, count * sizeof(uint16_t));
     }
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         for (Py_ssize_t i = 0; i < count; ++i) {
@@ -168,9 +211,8 @@ public:
     }
 
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        for (Py_ssize_t i = 0; i < count; ++i) {
-            target[i] = PyUnicode_READ_CHAR(py_str, start + i);
-        }
+        const uint32_t *src = as_ucs4(py_str) + start;
+        std::memcpy(target, src, count * sizeof(uint32_t));
     }
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         for (Py_ssize_t i = 0; i < count; ++i) {

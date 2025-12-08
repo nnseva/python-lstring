@@ -9,7 +9,7 @@
 #include "buffer.hxx"
 
 // ============================================================
-// JoinBuffer — объединение двух буферов
+// JoinBuffer — concatenation of two buffers
 // ============================================================
 class JoinBuffer : public Buffer {
 private:
