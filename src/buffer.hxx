@@ -130,7 +130,13 @@ public:
     }
 
     PyObject* repr() const override {
-        return PyObject_Repr(py_str);
+        PyObject *repr = PyObject_Repr(py_str);
+        if (!repr) {
+            return nullptr;
+        }
+        PyObject *result = PyUnicode_FromFormat("l%U", repr);
+        Py_DECREF(repr);
+        return result;
     }
 };
 
@@ -178,7 +184,13 @@ public:
     }
 
     PyObject* repr() const override {
-        return PyObject_Repr(py_str);
+        PyObject *repr = PyObject_Repr(py_str);
+        if (!repr) {
+            return nullptr;
+        }
+        PyObject *result = PyUnicode_FromFormat("l%U", repr);
+        Py_DECREF(repr);
+        return result;
     }
 };
 
@@ -226,7 +238,13 @@ public:
     }
 
     PyObject* repr() const override {
-        return PyObject_Repr(py_str);
+        PyObject *repr = PyObject_Repr(py_str);
+        if (!repr) {
+            return nullptr;
+        }
+        PyObject *result = PyUnicode_FromFormat("l%U", repr);
+        Py_DECREF(repr);
+        return result;
     }
 };
 

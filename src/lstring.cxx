@@ -132,13 +132,7 @@ static PyObject* LStr_repr(LStrObject *self) {
         return nullptr;
     }
 
-    PyObject *buf_repr = self->buffer->repr();
-    if (!buf_repr) return nullptr;
-
-    // Оборачиваем в <lstring.lstr ...>
-    PyObject *result = PyUnicode_FromFormat("<lstring.lstr %U>", buf_repr);
-    Py_DECREF(buf_repr);
-    return result;
+    return self->buffer->repr();
 }
 
 // sq_length: len(lstr)
