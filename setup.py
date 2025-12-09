@@ -11,7 +11,8 @@ ext_modules = [
             'src/join_buffer.hxx',
             'src/mul_buffer.hxx',
             'src/slice_buffer.hxx',
-            'src/lstring.hxx'
+            'src/str_buffer.hxx',
+            'src/lstring.hxx',
         ],
         language='c++',
     ),

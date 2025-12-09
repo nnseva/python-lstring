@@ -4,7 +4,7 @@ import lstring
 def benchmark():
     # Prepare long strings
     py_str = "abcdefghijklmnopqrstuvwxyz" * 100000
-    lstr_obj = lstring.lstr(py_str)
+    lstr_obj = lstring._lstr(py_str)
 
     # Define operations
     def py_slice_concat():
@@ -33,10 +33,10 @@ def benchmark():
 
     print("Slice + concat:")
     print(f"  Python str: {py_time1:.4f} sec")
-    print(f"  lstr:       {lstr_time1:.4f} sec")
+    print(f"  _lstr:      {lstr_time1:.4f} sec")
     print("Repeat + slice:")
     print(f"  Python str: {py_time2:.4f} sec")
-    print(f"  lstr:       {lstr_time2:.4f} sec")
+    print(f"  _lstr:      {lstr_time2:.4f} sec")
 
 if __name__ == "__main__":
     benchmark()

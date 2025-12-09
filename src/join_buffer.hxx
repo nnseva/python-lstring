@@ -2,57 +2,51 @@
 #define JOIN_BUFFER_HXX
 
 #include <Python.h>
-#include <stdexcept>
 #include <cstdint>
-#include <string>
 
 #include "buffer.hxx"
+#include <cppy/ptr.h>
 
 // ============================================================
 // JoinBuffer — concatenation of two buffers
 // ============================================================
 class JoinBuffer : public Buffer {
 private:
-    PyObject *left_obj;
-    PyObject *right_obj;
+    cppy::ptr left_obj;
+    cppy::ptr right_obj;
 
 public:
     JoinBuffer(PyObject *left, PyObject *right)
-        : left_obj(left), right_obj(right) {
-        Py_INCREF(left_obj);
-        Py_INCREF(right_obj);
+        : left_obj(left, true), right_obj(right, true) {
     }
 
-    ~JoinBuffer() override {
-        Py_XDECREF(left_obj);
-        Py_XDECREF(right_obj);
-    }
+    ~JoinBuffer() override = default;
 
     Py_ssize_t length() const override {
-        Buffer *lbuf = get_buffer(left_obj);
-        Buffer *rbuf = get_buffer(right_obj);
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
         return lbuf->length() + rbuf->length();
     }
 
     int unicode_kind() const override {
-        Buffer *lbuf = get_buffer(left_obj);
-        Buffer *rbuf = get_buffer(right_obj);
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
         return std::max(lbuf->unicode_kind(), rbuf->unicode_kind());
     }
 
     uint32_t value(Py_ssize_t index) const override {
-        Buffer *lbuf = get_buffer(left_obj);
+        Buffer *lbuf = get_buffer(left_obj.get());
         Py_ssize_t llen = lbuf->length();
         if (index < llen) {
             return lbuf->value(index);
         }
-        Buffer *rbuf = get_buffer(right_obj);
+        Buffer *rbuf = get_buffer(right_obj.get());
         return rbuf->value(index - llen);
     }
 
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *lbuf = get_buffer(left_obj);
-        Buffer *rbuf = get_buffer(right_obj);
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
         Py_ssize_t llen = lbuf->length();
 
         if (start < llen) {
@@ -67,8 +61,8 @@ public:
     }
 
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *lbuf = get_buffer(left_obj);
-        Buffer *rbuf = get_buffer(right_obj);
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
         Py_ssize_t llen = lbuf->length();
 
         if (start < llen) {
@@ -83,8 +77,8 @@ public:
     }
 
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *lbuf = get_buffer(left_obj);
-        Buffer *rbuf = get_buffer(right_obj);
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
         Py_ssize_t llen = lbuf->length();
 
         if (start < llen) {
@@ -100,8 +94,8 @@ public:
 
     // ---------- repr ----------
     PyObject* repr() const override {
-        Buffer *lbuf = get_buffer(left_obj);
-        Buffer *rbuf = get_buffer(right_obj);
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
 
         PyObject *lrepr = lbuf->repr();
         PyObject *rrepr = rbuf->repr();

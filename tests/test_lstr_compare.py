@@ -3,11 +3,11 @@ import lstring
 
 class TestLStrComparisons(unittest.TestCase):
     def setUp(self):
-        self.a = lstring.lstr("abc")
-        self.b = lstring.lstr("abc")
-        self.c = lstring.lstr("abd")
-        self.d = lstring.lstr("ab")
-        self.e = lstring.lstr("abcd")
+        self.a = lstring._lstr("abc")
+        self.b = lstring._lstr("abc")
+        self.c = lstring._lstr("abd")
+        self.d = lstring._lstr("ab")
+        self.e = lstring._lstr("abcd")
 
     def test_equality(self):
         # Equal strings

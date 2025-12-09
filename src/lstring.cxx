@@ -4,12 +4,12 @@
 
 #include "lstring.hxx"
 #include "buffer.hxx"
+#include "str_buffer.hxx"
 #include "join_buffer.hxx"
 #include "mul_buffer.hxx"
 #include "slice_buffer.hxx"
 
 #include <Python.h>
-#include <stdexcept>
 #include <cstdio>
 
 // ---------- Per-module state ----------
@@ -381,7 +381,7 @@ static int lstring_mod_exec(PyObject *module) {
     PyObject *type_obj = PyType_FromSpec(&LStr_spec);
     if (!type_obj) return -1;
     st->LStrType = type_obj;
-    if (PyModule_AddObject(module, "lstr", st->LStrType) < 0) {
+    if (PyModule_AddObject(module, "_lstr", st->LStrType) < 0) {
         Py_CLEAR(st->LStrType);
         return -1;
     }
