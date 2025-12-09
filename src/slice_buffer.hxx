@@ -54,11 +54,9 @@ public:
 
     PyObject* repr() const override {
         Buffer *buf = get_buffer(lstr_obj.get());
-        PyObject *inner = buf->repr();
+        cppy::ptr inner( buf->repr() );
         if (!inner) return nullptr;
-
-        PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd]", inner, start_index, end_index);
-        Py_DECREF(inner);
+        PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd]", inner.get(), start_index, end_index);
         return result;
     }
 };
@@ -128,11 +126,9 @@ public:
 
     PyObject* repr() const override {
         Buffer *buf = get_buffer(lstr_obj.get());
-        PyObject *inner = buf->repr();
+        cppy::ptr inner( buf->repr() );
         if (!inner) return nullptr;
-
-        PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd:%ld]", inner, start_index, end_index, step);
-        Py_DECREF(inner);
+        PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd:%ld]", inner.get(), start_index, end_index, step);
         return result;
     }
 };

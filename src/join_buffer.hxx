@@ -97,17 +97,10 @@ public:
         Buffer *lbuf = get_buffer(left_obj.get());
         Buffer *rbuf = get_buffer(right_obj.get());
 
-        PyObject *lrepr = lbuf->repr();
-        PyObject *rrepr = rbuf->repr();
-        if (!lrepr || !rrepr) {
-            Py_XDECREF(lrepr);
-            Py_XDECREF(rrepr);
-            return nullptr;
-        }
-
-        PyObject *result = PyUnicode_FromFormat("(%U + %U)", lrepr, rrepr);
-        Py_DECREF(lrepr);
-        Py_DECREF(rrepr);
+        cppy::ptr lrepr( lbuf->repr() );
+        cppy::ptr rrepr( rbuf->repr() );
+        if (!lrepr || !rrepr) return nullptr;
+        PyObject *result = PyUnicode_FromFormat("(%U + %U)", lrepr.get(), rrepr.get());
         return result;
     }
 };

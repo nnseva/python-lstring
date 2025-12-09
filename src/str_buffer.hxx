@@ -50,12 +50,9 @@ public:
     }
 
     PyObject* repr() const override {
-        PyObject *repr_obj = py_str.repr();
-        if (!repr_obj) {
-            return nullptr;
-        }
-        PyObject *result = PyUnicode_FromFormat("l%U", repr_obj);
-        Py_DECREF(repr_obj);
+        cppy::ptr repr_obj( py_str.repr() );
+        if (!repr_obj) return nullptr;
+        PyObject *result = PyUnicode_FromFormat("l%U", repr_obj.get());
         return result;
     }
 };

@@ -73,11 +73,9 @@ public:
     // ---------- repr ----------
     PyObject* repr() const override {
         Buffer *buf = get_buffer(lstr_obj.get());
-        PyObject *lrepr = buf->repr();
+        cppy::ptr lrepr( buf->repr() );
         if (!lrepr) return nullptr;
-
-        PyObject *result = PyUnicode_FromFormat("(%U * %zd)", lrepr, repeat_count);
-        Py_DECREF(lrepr);
+        PyObject *result = PyUnicode_FromFormat("(%U * %zd)", lrepr.get(), repeat_count);
         return result;
     }
 };
