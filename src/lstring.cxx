@@ -2,15 +2,15 @@
 //
 // Python C++ extension defining lstring.lstr class - lazy string.
 
+#include <Python.h>
+#include <cstdio>
+
 #include "lstring.hxx"
 #include "buffer.hxx"
 #include "str_buffer.hxx"
 #include "join_buffer.hxx"
 #include "mul_buffer.hxx"
 #include "slice_buffer.hxx"
-
-#include <Python.h>
-#include <cstdio>
 
 // ---------- Per-module state ----------
 typedef struct {
@@ -82,6 +82,7 @@ static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 
     LStrObject *self = (LStrObject*)type->tp_alloc(type, 0);
     if (!self) return nullptr;
+    cppy::ptr self_owner((PyObject*)self);
 
     try {
         switch (PyUnicode_KIND(py_str)) {
@@ -95,21 +96,18 @@ static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
                 self->buffer = new Str32Buffer(py_str);
                 break;
             default:
-                Py_DECREF((PyObject*)self);
                 PyErr_SetString(PyExc_RuntimeError, "Unsupported Unicode kind");
                 return nullptr;
         }
     } catch (const std::exception &e) {
-        Py_DECREF((PyObject*)self);
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
     } catch (...) {
-        Py_DECREF((PyObject*)self);
         PyErr_SetString(PyExc_RuntimeError, "Buffer allocation failed");
         return nullptr;
     }
 
-    return (PyObject*)self;
+    return self_owner.release();
 }
 
 static void LStr_dealloc(LStrObject *self) {
@@ -178,6 +176,7 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     PyTypeObject *type = Py_TYPE(self);
     LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
     if (!result) return nullptr;
+    cppy::ptr result_owner((PyObject*)result);
 
     try {
         if (step == 1) {
@@ -186,16 +185,14 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
             result->buffer = new SliceBuffer(self_obj, start, end, step);
         }
     } catch (const std::exception &e) {
-        Py_DECREF((PyObject*)result);
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
     } catch (...) {
-        Py_DECREF((PyObject*)result);
         PyErr_SetString(PyExc_RuntimeError, "slice creation failed");
         return nullptr;
     }
 
-    return (PyObject*)result;
+    return result_owner.release();
 }
 
 // ---------- Concatenation (operator +) ----------
@@ -209,28 +206,26 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     PyTypeObject *type = Py_TYPE(left);
     LStrObject *self = (LStrObject*)type->tp_alloc(type, 0);
     if (!self) return nullptr;
+    cppy::ptr self_owner((PyObject*)self);
 
     try {
         self->buffer = new JoinBuffer(left, right);
     } catch (const std::exception &e) {
-        Py_DECREF((PyObject*)self);
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
     } catch (...) {
-        Py_DECREF((PyObject*)self);
         PyErr_SetString(PyExc_RuntimeError, "JoinBuffer allocation failed");
         return nullptr;
     }
 
-    return (PyObject*)self;
+    return self_owner.release();
 }
 
 // Wrap Py_ssize_t count into PyLong and reuse LStr_mul
 static PyObject* LStr_sq_repeat(PyObject *self, Py_ssize_t count) {
-    PyObject *count_obj = PyLong_FromSsize_t(count);
-    if (!count_obj) return nullptr;
-    PyObject *res = LStr_mul(self, count_obj);
-    Py_DECREF(count_obj);
+    cppy::ptr count_owner( PyLong_FromSsize_t(count) );
+    if (!count_owner) return nullptr;
+    PyObject *res = LStr_mul(self, count_owner.get());
     return res;
 }
 
@@ -267,20 +262,19 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
     PyTypeObject *type = Py_TYPE(lstr_obj);
     LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
     if (!result) return nullptr;
+    cppy::ptr result_owner((PyObject*)result);
 
     try {
         result->buffer = new MulBuffer(lstr_obj, repeat_count);
     } catch (const std::exception &e) {
-        Py_DECREF((PyObject*)result);
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
     } catch (...) {
-        Py_DECREF((PyObject*)result);
         PyErr_SetString(PyExc_RuntimeError, "lstr multiplication failed");
         return nullptr;
     }
 
-    return (PyObject*)result;
+    return result_owner.release();
 }
 
 // ---------- Compare ----------
