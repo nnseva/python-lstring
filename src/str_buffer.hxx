@@ -11,7 +11,6 @@
 // ============================================================
 // StrBuffer (base for Str*Buffer)
 // ============================================================
-// intermediate wrapper using cppy ptr to manage refcounting safely
 class StrBuffer : public Buffer {
 protected:
     cppy::ptr py_str;
@@ -23,8 +22,6 @@ public:
     Py_ssize_t length() const override {
         return PyUnicode_GET_LENGTH(py_str.get());
     }
-
-    // default unicode_kind left abstract - implemented by derived classes
 
     uint32_t value(Py_ssize_t index) const override {
         if (index < 0 || index >= length()) throw std::out_of_range("StrBuffer: index out of range");
@@ -54,6 +51,14 @@ public:
         if (!repr_obj) return nullptr;
         PyObject *result = PyUnicode_FromFormat("l%U", repr_obj.get());
         return result;
+    }
+    // Override is_str to indicate this is a string buffer
+    bool is_str() const override {
+        return true;
+    }
+
+    PyObject* get_str() const {
+        return py_str.get();
     }
 };
 

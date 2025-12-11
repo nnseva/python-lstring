@@ -33,15 +33,24 @@ static Py_ssize_t LStr_sq_length(PyObject *self);
 static PyObject* LStr_sq_repeat(PyObject *self, Py_ssize_t count);
 static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key);
 static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op);
+static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static void _collapse(LStrObject *self);
 
 
 // ---------- Type slots ----------
+// Methods exposed on the lstr type
+static PyMethodDef LStr_methods[] = {
+    {"collapse", (PyCFunction)LStr_collapse, METH_NOARGS, "Collapse internal buffer to a contiguous str buffer"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
 static PyType_Slot LStr_slots[] = {
     {Py_tp_new,       (void*)LStr_new},
     {Py_tp_dealloc,   (void*)LStr_dealloc},
     {Py_tp_hash,      (void*)LStr_hash},
     {Py_tp_repr,      (void*)LStr_repr},
     {Py_tp_str,       (void*)LStr_str},   // conversion to str
+    {Py_tp_methods,   (void*)LStr_methods},
     {Py_tp_doc,       (void*)"lstr is a lazy string class that defers direct access to its internal buffer"},
     {Py_nb_add,       (void*)LStr_add},   // operator +
     {Py_nb_multiply,  (void*)LStr_mul},   // operator *
@@ -68,6 +77,21 @@ static PyType_Spec LStr_spec = {
 };
 
 // ---------- Implementation ----------
+// Helper: construct appropriate StrBuffer based on PyUnicode kind
+static StrBuffer* make_str_buffer(PyObject *py_str) {
+    switch (PyUnicode_KIND(py_str)) {
+        case PyUnicode_1BYTE_KIND:
+            return new Str8Buffer(py_str);
+        case PyUnicode_2BYTE_KIND:
+            return new Str16Buffer(py_str);
+        case PyUnicode_4BYTE_KIND:
+            return new Str32Buffer(py_str);
+        default:
+            PyErr_SetString(PyExc_RuntimeError, "Unsupported Unicode kind");
+            return nullptr;
+    }
+}
+
 static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     static const char *kwlist[] = {"string", nullptr};
     PyObject *py_str = nullptr;
@@ -85,20 +109,8 @@ static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     cppy::ptr self_owner((PyObject*)self);
 
     try {
-        switch (PyUnicode_KIND(py_str)) {
-            case PyUnicode_1BYTE_KIND:
-                self->buffer = new Str8Buffer(py_str);
-                break;
-            case PyUnicode_2BYTE_KIND:
-                self->buffer = new Str16Buffer(py_str);
-                break;
-            case PyUnicode_4BYTE_KIND:
-                self->buffer = new Str32Buffer(py_str);
-                break;
-            default:
-                PyErr_SetString(PyExc_RuntimeError, "Unsupported Unicode kind");
-                return nullptr;
-        }
+        self->buffer = make_str_buffer(py_str);
+        if (!self->buffer) return nullptr; // make_str_buffer sets PyErr on failure
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
@@ -131,6 +143,31 @@ static PyObject* LStr_repr(LStrObject *self) {
     }
 
     return self->buffer->repr();
+}
+
+// Internal helper: collapse the buffer into a StrBuffer-backed buffer.
+// If the current buffer already is a StrBuffer (is_str()), do nothing.
+// Otherwise, create a Python string via LStr_str, replace the buffer
+// with the result of make_str_buffer(py_str).
+static void _collapse(LStrObject *self) {
+    if (!self || !self->buffer) return;
+    if (self->buffer->is_str()) return; // already a StrBuffer
+
+    cppy::ptr py( LStr_str(self) );
+    if (!py) {
+        // propagate error to caller by leaving state unchanged
+        return;
+    }
+
+    // Create new StrBuffer from the Python string
+    StrBuffer *new_buf = make_str_buffer(py.get());
+    if (!new_buf) {
+        return; // make_str_buffer sets an error
+    }
+
+    // Replace buffer
+    delete self->buffer;
+    self->buffer = new_buf;
 }
 
 // sq_length: len(lstr)
@@ -193,6 +230,17 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     }
 
     return result_owner.release();
+}
+
+// Python-exposed method wrapper for collapse()
+static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        return nullptr;
+    }
+    _collapse(self);
+    if (PyErr_Occurred()) return nullptr;
+    Py_RETURN_NONE;
 }
 
 // ---------- Concatenation (operator +) ----------

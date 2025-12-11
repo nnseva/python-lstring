@@ -13,14 +13,16 @@
 // Slice1Buffer — continuous slice with step = 1
 // ============================================================
 class Slice1Buffer : public Buffer {
-private:
+protected:
     cppy::ptr lstr_obj;
     Py_ssize_t start_index;
     Py_ssize_t end_index;
 
+    mutable Py_ssize_t cached_kind;
+
 public:
     Slice1Buffer(PyObject *lstr, Py_ssize_t start, Py_ssize_t end)
-        : lstr_obj(lstr, true), start_index(start), end_index(end) {
+        : lstr_obj(lstr, true), start_index(start), end_index(end), cached_kind(-1) {
     }
 
     ~Slice1Buffer() override = default;
@@ -30,8 +32,38 @@ public:
     }
 
     int unicode_kind() const override {
+        if (cached_kind != -1) return cached_kind;
+
         Buffer *buf = get_buffer(lstr_obj.get());
-        return buf->unicode_kind();
+        int original_kind = buf->unicode_kind();
+        if(original_kind == PyUnicode_1BYTE_KIND) {
+            cached_kind = PyUnicode_1BYTE_KIND;
+        } else if(original_kind == PyUnicode_2BYTE_KIND) {
+            // check if all char are in 1-byte range
+            int kind = PyUnicode_1BYTE_KIND;
+            for(Py_ssize_t index=0; index < length(); index++) {
+                if(value(index) >= 0x100) {
+                    kind = PyUnicode_2BYTE_KIND;
+                    break;
+                }
+            }
+            cached_kind = kind;
+        } else if(original_kind == PyUnicode_4BYTE_KIND) {
+            // check if all char are in 1-byte or 2-byte range
+            int kind = PyUnicode_1BYTE_KIND;
+            for(Py_ssize_t index=0; index < length(); index++) {
+                if(value(index) >= 0x10000) {
+                    kind = PyUnicode_4BYTE_KIND;
+                    break;
+                } else if(value(index) >= 0x100) {
+                    if(kind < PyUnicode_2BYTE_KIND) {
+                        kind = PyUnicode_2BYTE_KIND;
+                    }
+                }
+            }
+            cached_kind = kind;
+        }
+        return cached_kind;
     }
 
     uint32_t value(Py_ssize_t index) const override {
@@ -64,11 +96,8 @@ public:
 // ============================================================
 // SliceBuffer — slice with arbitrary step (positive or negative)
 // ============================================================
-class SliceBuffer : public Buffer {
-private:
-    cppy::ptr lstr_obj;
-    Py_ssize_t start_index;
-    Py_ssize_t end_index;
+class SliceBuffer : public Slice1Buffer {
+protected:
     Py_ssize_t step;
     Py_ssize_t cached_len;
 
@@ -85,20 +114,14 @@ private:
 
 public:
     SliceBuffer(PyObject *lstr, Py_ssize_t start, Py_ssize_t end, Py_ssize_t step_val)
-        : lstr_obj(lstr, true), start_index(start), end_index(end), step(step_val) {
+        : Slice1Buffer(lstr, start, end), step(step_val) {
         if (step == 0) throw std::runtime_error("SliceBuffer: step cannot be zero");
-
         cached_len = compute_len(start_index, end_index, step);
     }
 
     ~SliceBuffer() override = default;
 
     Py_ssize_t length() const override { return cached_len; }
-
-    int unicode_kind() const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        return buf->unicode_kind();
-    }
 
     uint32_t value(Py_ssize_t index) const override {
         Buffer *buf = get_buffer(lstr_obj.get());

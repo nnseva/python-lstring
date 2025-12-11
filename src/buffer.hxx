@@ -46,6 +46,10 @@ public:
 
     virtual PyObject* repr() const = 0;
 
+    // Check if the buffer is a string buffer (StrBuffer)
+    virtual bool is_str() const {
+        return false;
+    }
     // non-const hash with caching
     Py_hash_t hash() {
         if (cached_hash != -1) {
