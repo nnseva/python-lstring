@@ -35,7 +35,8 @@ class TestLStrRefCounts(unittest.TestCase):
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
                 x = lstring._lstr(s)
-                _ = str(x)  # make sure object is used
+                tmp = str(x)  # make sure object is used
+                del tmp
                 del x
                 gc.collect()
                 after = sys.getrefcount(s)
@@ -53,7 +54,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 x = lstring._lstr(a)
                 y = lstring._lstr(b)
                 z = x + y
-                _ = str(z)
+                tmp = str(z)
+                del tmp
                 del z, x, y
                 gc.collect()
 
@@ -72,7 +74,8 @@ class TestLStrRefCounts(unittest.TestCase):
 
                 r1 = x * 3
                 r2 = 2 * x
-                _ = (str(r1), str(r2))
+                tmp = (str(r1), str(r2))
+                del tmp
 
                 del r1, r2, x
                 gc.collect()
@@ -94,7 +97,8 @@ class TestLStrRefCounts(unittest.TestCase):
                     x[-4:-1],
                     x[10:20],
                 ]
-                _ = [str(u) for u in subs]
+                tmp = [str(u) for u in subs]
+                del tmp
 
                 del subs, x
                 gc.collect()
@@ -111,10 +115,8 @@ class TestLStrRefCounts(unittest.TestCase):
 
                 if len(s) >= 2:
                     ch1 = x[1]
-                    _ = ch1
                     del ch1
                 ch_last = x[-1]
-                _ = ch_last
                 del ch_last
 
                 del x
@@ -129,9 +131,9 @@ class TestLStrRefCounts(unittest.TestCase):
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
                 x = lstring._lstr(s)
-                out = str(x)
-                _ = out
-                del out, x
+                tmp = str(x)
+                del tmp
+                del x
                 gc.collect()
                 after = sys.getrefcount(s)
                 self.assertEqual(after, before)
@@ -144,7 +146,6 @@ class TestLStrRefCounts(unittest.TestCase):
                 before = sys.getrefcount(s)
                 x = lstring._lstr(s)
                 r = repr(x)
-                _ = r
                 del r, x
                 gc.collect()
                 after = sys.getrefcount(s)

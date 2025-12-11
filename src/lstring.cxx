@@ -370,6 +370,15 @@ static PyObject* LStr_str(LStrObject *self) {
         return nullptr;
     }
 
+    // Shortcut: if buffer already wraps a Python str (StrBuffer), return it
+    // directly (with an owned reference) to avoid copying.
+    if (buf->is_str()) {
+        // Safe to dynamic_cast because StrBuffer overrides is_str()
+        StrBuffer *sbuf = static_cast<StrBuffer*>(buf);
+        cppy::ptr py(sbuf->get_str(), true);
+        return py.release();
+    }
+
     uint32_t len = buf->length();
     int kind = buf->unicode_kind();
 
