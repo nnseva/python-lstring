@@ -46,7 +46,6 @@ static PyObject* LStr_add(PyObject *left, PyObject *right);
 static PyObject* LStr_mul(PyObject *left, PyObject *right);
 static PyObject* LStr_str(LStrObject *self);
 static Py_ssize_t LStr_sq_length(PyObject *self);
-static PyObject* LStr_sq_repeat(PyObject *self, Py_ssize_t count);
 static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key);
 static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op);
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
@@ -73,14 +72,11 @@ static PyType_Slot LStr_slots[] = {
     {Py_nb_multiply,  (void*)LStr_mul},   // operator *
     {Py_tp_richcompare, (void*)LStr_richcompare},
 
-    // Sequence protocol
+    // Sequence protocol: only length is provided; concatenation/repeat
+    // are implemented via the number protocol (nb_add / nb_multiply).
     {Py_sq_length, (void*)LStr_sq_length},
-    {Py_sq_concat, (void*)LStr_add},
-    {Py_sq_repeat, (void*)LStr_sq_repeat},
 
-    // lstr[index]
-
-    // Mapping protocol: lstr[start:stop:step]
+    // Mapping protocol: lstr[index] lstr[start:stop:step]
     {Py_mp_subscript, (void*)LStr_subscript},
     {0, nullptr}
 };
@@ -109,6 +105,7 @@ static StrBuffer* make_str_buffer(PyObject *py_str) {
     }
 }
 
+// ---------- LStr constructors / destructors ----------
 static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     static const char *kwlist[] = {"string", nullptr};
     PyObject *py_str = nullptr;
@@ -145,12 +142,17 @@ static void LStr_dealloc(LStrObject *self) {
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
+// ---------- LStr hash, length and repr ----------
 static Py_hash_t LStr_hash(LStrObject *self) {
     if (!self->buffer) {
         PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
         return -1;
     }
     return self->buffer->hash();
+}
+
+static Py_ssize_t LStr_sq_length(PyObject *self) {
+    return ((LStrObject*)self)->buffer->length();
 }
 
 static PyObject* LStr_repr(LStrObject *self) {
@@ -199,11 +201,6 @@ static void lstr_optimize(LStrObject *self) {
 
     Py_ssize_t len = (Py_ssize_t)self->buffer->length();
     if (len < g_optimize_threshold) lstr_collapse(self);
-}
-
-// sq_length: len(lstr)
-static Py_ssize_t LStr_sq_length(PyObject *self) {
-    return ((LStrObject*)self)->buffer->length();
 }
 
 // ---------- Slicing via mapping (mp_subscript) ----------
@@ -304,14 +301,6 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     lstr_optimize(result);
 
     return result_owner.release();
-}
-
-// Wrap Py_ssize_t count into PyLong and reuse LStr_mul
-static PyObject* LStr_sq_repeat(PyObject *self, Py_ssize_t count) {
-    cppy::ptr count_owner( PyLong_FromSsize_t(count) );
-    if (!count_owner) return nullptr;
-    PyObject *res = LStr_mul(self, count_owner.get());
-    return res;
 }
 
 // ---------- Multiplication (operator *) ----------
