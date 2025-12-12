@@ -276,19 +276,69 @@ static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
 
 // ---------- Concatenation (operator +) ----------
 static PyObject* LStr_add(PyObject *left, PyObject *right) {
-    // Ensure both operands are of type lstr
-    if (Py_TYPE(left) != Py_TYPE(right)) {
-        PyErr_SetString(PyExc_TypeError, "both operands must be lstr");
+    // Allow mixing `_lstr` and Python `str`.
+    bool left_is_str = PyUnicode_Check(left);
+    bool right_is_str = PyUnicode_Check(right);
+
+    // Helper: detect whether an object is our lstr type by checking for
+    // the `collapse` attribute on its type (cheap heuristic used elsewhere).
+    auto is_lstr_type = [](PyObject *obj) -> bool {
+        return PyObject_HasAttrString((PyObject*)Py_TYPE(obj), "collapse");
+    };
+
+    // Reject str+str
+    if (left_is_str && right_is_str) {
+        PyErr_SetString(PyExc_TypeError, "both operands cannot be Python str");
         return nullptr;
     }
 
-    PyTypeObject *type = Py_TYPE(left);
+    // Determine lstr type and validate operands. If one operand is a Python
+    // str, the other must be an lstr. Otherwise both operands must be the
+    // same lstr type. For unsupported combos, return a clear error that
+    // includes the Python-level type names.
+    PyTypeObject *type = nullptr;
+    if (!left_is_str && !right_is_str && Py_TYPE(left) != Py_TYPE(right)) {
+        // neither is Python str: require both be same lstr type
+        cppy::ptr lt(PyObject_Type(left), true);
+        cppy::ptr rt(PyObject_Type(right), true);
+        PyErr_Format(PyExc_TypeError, "Operation %R + %R not supported", lt.get(), rt.get());
+        return nullptr;
+    }
+
+    if (left_is_str) {
+        type = Py_TYPE(right);
+    } else {
+        type = Py_TYPE(left);
+    }
+    cppy::ptr left_owner, right_owner;
+    if(left_is_str) {
+        PyObject *new_left = type->tp_alloc(type, 0);
+        if (!new_left) return nullptr;
+        left_owner = cppy::ptr(new_left);
+        right_owner = cppy::ptr(right, true);
+        StrBuffer *buf = make_str_buffer(left);
+        if(!buf) return nullptr; // make_str_buffer sets PyErr on failure
+        ((LStrObject *)left_owner.get())->buffer = buf;
+    } else if(right_is_str) {
+        PyObject *new_right = type->tp_alloc(type, 0);
+        if (!new_right) return nullptr;
+        right_owner = cppy::ptr(new_right);
+        left_owner = cppy::ptr(left, true);
+        StrBuffer *buf = make_str_buffer(right);
+        if(!buf) return nullptr; // make_str_buffer sets PyErr on failure
+        ((LStrObject *)right_owner.get())->buffer = buf;
+    } else {
+        left_owner = cppy::ptr(left, true);
+        right_owner = cppy::ptr(right, true);
+    }
+
+    // Allocate result object of the lstr type
     LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
     if (!result) return nullptr;
     cppy::ptr result_owner((PyObject*)result);
 
     try {
-        result->buffer = new JoinBuffer(left, right);
+        result->buffer = new JoinBuffer(left_owner.get(), right_owner.get());
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;

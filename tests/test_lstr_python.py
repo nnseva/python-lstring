@@ -31,8 +31,11 @@ class TestLStr(unittest.TestCase):
         self.assertEqual(str(s3), "foobar")
 
     def test_concat_invalid(self):
-        with self.assertRaises(TypeError):
-            _ = lstring._lstr("foo") + "bar"
+        # Mixed concatenation with a Python str is supported: the str is
+        # wrapped into a temporary lstr instance and concatenated.
+        s = lstring._lstr("foo") + "bar"
+        self.assertIsInstance(s, lstring._lstr)
+        self.assertEqual(str(s), "foobar")
 
     # --- Умножение ---
     def test_mul_valid(self):

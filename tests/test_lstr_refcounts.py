@@ -75,6 +75,84 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after_a, before_a)
                 self.assertEqual(after_b, before_b)
 
+    def test_concat_lstr_plus_str_refcounts(self):
+        # _lstr + Python str: both operands' refcounts must remain unchanged.
+        for a in self.kinds():
+            for b in self.kinds():
+                with self.subTest(left=a, right=b):
+                    before_a = sys.getrefcount(a)
+                    before_b = sys.getrefcount(b)
+
+                    x = lstring._lstr(a)
+                    z = x + b
+                    tmp = str(z)
+                    del tmp
+                    del z, x
+                    gc.collect()
+
+                    after_a = sys.getrefcount(a)
+                    after_b = sys.getrefcount(b)
+                    self.assertEqual(after_a, before_a)
+                    self.assertEqual(after_b, before_b)
+
+    def test_concat_str_plus_lstr_refcounts(self):
+        # Python str + _lstr: both operands' refcounts must remain unchanged.
+        for a in self.kinds():
+            for b in self.kinds():
+                with self.subTest(left=a, right=b):
+                    before_a = sys.getrefcount(a)
+                    before_b = sys.getrefcount(b)
+
+                    y = lstring._lstr(b)
+                    z = a + y
+                    tmp = str(z)
+                    del tmp
+                    del z, y
+                    gc.collect()
+
+                    after_a = sys.getrefcount(a)
+                    after_b = sys.getrefcount(b)
+                    self.assertEqual(after_a, before_a)
+                    self.assertEqual(after_b, before_b)
+
+    def test_concat_invalid_arg_refcounts(self):
+        # Attempting to concatenate _lstr with an incompatible object must
+        # raise TypeError and leave both operands' refcounts unchanged.
+        for s in self.kinds():
+            with self.subTest(src=s):
+                # create a dynamic non-lstr object (distinct type each loop)
+                bad = type("Bad", (), {})()
+                # check left: _lstr + bad
+                before_l = sys.getrefcount(s)
+                before_b = sys.getrefcount(bad)
+                x = lstring._lstr(s)
+                try:
+                    with self.assertRaises(TypeError):
+                        _ = x + bad
+                finally:
+                    del x
+                    gc.collect()
+                after_l = sys.getrefcount(s)
+                after_b = sys.getrefcount(bad)
+                self.assertEqual(after_l, before_l)
+                self.assertEqual(after_b, before_b)
+
+                # check right: bad + _lstr
+                bad2 = type("Bad2", (), {})()
+                before_l2 = sys.getrefcount(s)
+                before_b2 = sys.getrefcount(bad2)
+                y = lstring._lstr(s)
+                try:
+                    with self.assertRaises(TypeError):
+                        _ = bad2 + y
+                finally:
+                    del y
+                    gc.collect()
+                after_l2 = sys.getrefcount(s)
+                after_b2 = sys.getrefcount(bad2)
+                self.assertEqual(after_l2, before_l2)
+                self.assertEqual(after_b2, before_b2)
+
     # --- Multiplication (_lstr * int and int * _lstr) ---
     def test_mul_refcounts(self):
         # Multiplication must not affect source string's refcount.
