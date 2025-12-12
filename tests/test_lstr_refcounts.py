@@ -1,29 +1,48 @@
+"""Reference-counting tests for lstring._lstr operations.
+
+Utilities:
+ - dyn(s): create a dynamic (non-interned) string equal to `s`.
+"""
+
 import unittest
 import sys
 import gc
 import lstring
 
+
 def dyn(s: str) -> str:
-    """Create a dynamic (non-interned) string equal to `s`."""
-    # Using join creates a new string object at runtime and avoids interned literal behavior.
+    """Create a dynamic (non-interned) string equal to `s`.
+
+    Using join creates a new string object at runtime and avoids interned
+    literal behavior.
+    """
     return "".join(s)
 
 class TestLStrRefCounts(unittest.TestCase):
+    """Reference-counting tests covering _lstr operations.
+
+    These tests verify that various lazy operations (construction, concat,
+    repeat, slice, indexing, repr/str) do not leak or change refcounts of the
+    original Python string objects used as sources. Garbage collection is
+    controlled around tests to make refcount measurements deterministic.
+    """
     @classmethod
     def setUpClass(cls):
-        # Ensure tests run with optimization disabled to preserve lazy buffer behavior
+        """Disable optimization for predictable lazy buffer behavior."""
         cls.original_threshold = lstring.get_optimize_threshold()
         lstring.set_optimize_threshold(0)
 
     @classmethod
-    def tearDownClass(cls): 
-        # Restore default optimization setting after tests
+    def tearDownClass(cls):
+        """Restore the optimization threshold after the test class finishes."""
         lstring.set_optimize_threshold(cls.original_threshold)
 
     def setUp(self):
+        """Collect garbage before each test to stabilize reference counts."""
         gc.collect()
 
     def tearDown(self):
+        """Collect garbage after each test to clean up temporary objects."""
         gc.collect()
 
     def kinds(self):
@@ -38,10 +57,8 @@ class TestLStrRefCounts(unittest.TestCase):
         for i in range(len(k)):
             for j in range(len(k)):
                 yield (k[i], k[j])
-
-    # --- Constructor ---
     def test_constructor_refcounts(self):
-        # Constructing and deleting _lstr must not change source string's refcount.
+        """Constructing and deleting an `_lstr` does not change the source refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -51,12 +68,10 @@ class TestLStrRefCounts(unittest.TestCase):
                 del x
                 gc.collect()
                 after = sys.getrefcount(s)
-                # Compare directly in test body to avoid extra references.
                 self.assertEqual(after, before)
 
-    # --- Concatenation ---
     def test_concat_refcounts(self):
-        # Concatenation across all pairs (including mixed kinds) must keep sources' refcounts unchanged.
+        """Concatenating two `_lstr` instances does not affect original strings' refcounts."""
         for a, b in self.pairs():
             with self.subTest(left=a, right=b):
                 before_a = sys.getrefcount(a)
@@ -76,7 +91,7 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after_b, before_b)
 
     def test_concat_lstr_plus_str_refcounts(self):
-        # _lstr + Python str: both operands' refcounts must remain unchanged.
+        """Mixing `_lstr + str` preserves refcounts of both operands."""
         for a in self.kinds():
             for b in self.kinds():
                 with self.subTest(left=a, right=b):
@@ -96,7 +111,7 @@ class TestLStrRefCounts(unittest.TestCase):
                     self.assertEqual(after_b, before_b)
 
     def test_concat_str_plus_lstr_refcounts(self):
-        # Python str + _lstr: both operands' refcounts must remain unchanged.
+        """Mixing `str + _lstr` preserves refcounts of both operands."""
         for a in self.kinds():
             for b in self.kinds():
                 with self.subTest(left=a, right=b):
@@ -116,8 +131,7 @@ class TestLStrRefCounts(unittest.TestCase):
                     self.assertEqual(after_b, before_b)
 
     def test_concat_invalid_arg_refcounts(self):
-        # Attempting to concatenate _lstr with an incompatible object must
-        # raise TypeError and leave both operands' refcounts unchanged.
+        """Concatenation with incompatible operand raises TypeError without changing refcounts."""
         for s in self.kinds():
             with self.subTest(src=s):
                 # create a dynamic non-lstr object (distinct type each loop)
@@ -153,9 +167,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after_l2, before_l2)
                 self.assertEqual(after_b2, before_b2)
 
-    # --- Multiplication (_lstr * int and int * _lstr) ---
     def test_mul_refcounts(self):
-        # Multiplication must not affect source string's refcount.
+        """Repeating an `_lstr` leaves the source string's refcount unchanged."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -171,9 +184,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 after = sys.getrefcount(s)
                 self.assertEqual(after, before)
 
-    # --- Slicing ---
     def test_slice_refcounts(self):
-        # Slicing patterns must not affect source string's refcount.
+        """Different slicing patterns must not change the source string's refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -194,9 +206,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 after = sys.getrefcount(s)
                 self.assertEqual(after, before)
 
-    # --- Indexing ---
     def test_index_refcounts(self):
-        # Indexing (positive and negative) must leave source refcount unchanged.
+        """Indexing a string (positive/negative) must not affect the source refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -213,9 +224,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 after = sys.getrefcount(s)
                 self.assertEqual(after, before)
 
-    # --- str conversion ---
     def test_str_conversion_refcounts(self):
-        # str(_lstr) must not change source string's refcount.
+        """Converting an `_lstr` to str does not change the source string's refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -227,9 +237,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 after = sys.getrefcount(s)
                 self.assertEqual(after, before)
 
-    # --- Repr ---
     def test_repr_refcounts(self):
-        # repr(_lstr) must not change the source string's refcount.
+        """Calling repr() on an `_lstr` must not affect the source string's refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -240,9 +249,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 after = sys.getrefcount(s)
                 self.assertEqual(after, before)
 
-    # --- Error cases ---
     def test_error_mul_float_refcounts(self):
-        # Multiplication by float -> TypeError; source refcount must remain unchanged.
+        """Multiplying by a float raises TypeError and preserves source refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -255,7 +263,7 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after, before)
 
     def test_error_mul_negative_refcounts(self):
-        # Multiplication by negative -> RuntimeError; source refcount must remain unchanged.
+        """Multiplying by a negative integer raises RuntimeError and preserves refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -268,7 +276,7 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after, before)
 
     def test_error_index_out_of_range_refcounts(self):
-        # Index out of range -> IndexError; source refcount must remain unchanged.
+        """Indexing out of range raises IndexError and preserves source refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -281,7 +289,7 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after, before)
 
     def test_error_slice_zero_step_refcounts(self):
-        # Slice with step=0 -> ValueError; source refcount must remain unchanged.
+        """Slicing with a zero step raises ValueError and does not affect refcounts."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
@@ -293,9 +301,8 @@ class TestLStrRefCounts(unittest.TestCase):
                 after = sys.getrefcount(s)
                 self.assertEqual(after, before)
 
-    # --- Mixed-kind stress chain ---
     def test_mixed_chain_refcounts(self):
-        # Stress multiple operations across mixed kinds; all source refcounts must remain unchanged.
+        """Stress multiple mixed-kind operations and assert no leakage of source refcounts."""
         a = dyn("abcd")                             # 1-byte
         b = dyn("\u03B1\u03B2\u03B3")               # 2-byte
         c = dyn("\U0001F600\U0001F601")             # 4-byte

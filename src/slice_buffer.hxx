@@ -9,9 +9,11 @@
 #include "buffer.hxx"
 #include <cppy/ptr.h>
 
-// ============================================================
-// Slice1Buffer — continuous slice with step = 1
-// ============================================================
+/**
+ * @brief Slice1Buffer — continuous slice with step = 1
+ *
+ * Provides a view for continuous slices (step == 1) over another buffer.
+ */
 class Slice1Buffer : public Buffer {
 protected:
     cppy::ptr lstr_obj;
@@ -21,16 +23,38 @@ protected:
     mutable Py_ssize_t cached_kind;
 
 public:
+    /**
+     * @brief Construct a continuous slice view [start:end) with step == 1.
+     *
+     * @param lstr Python object that provides a Buffer implementation (borrowed ref).
+     * @param start Start index (inclusive) within the base buffer.
+     * @param end End index (exclusive) within the base buffer.
+     */
     Slice1Buffer(PyObject *lstr, Py_ssize_t start, Py_ssize_t end)
         : lstr_obj(lstr, true), start_index(start), end_index(end), cached_kind(-1) {
     }
 
+    /**
+     * @brief Destructor (defaulted).
+     */
     ~Slice1Buffer() override = default;
 
+    /**
+     * @brief Length of the continuous slice.
+     *
+     * Returns max(0, end - start).
+     */
     Py_ssize_t length() const override {
         return end_index > start_index ? (end_index - start_index) : 0;
     }
 
+    /**
+     * @brief Determine the minimal Unicode storage kind required by this slice.
+     *
+     * Caches the computed kind in `cached_kind`. If the underlying buffer
+     * suggests a larger kind, this function scans the slice to see whether a
+     * narrower representation suffices (e.g. all code points fit in 1-byte).
+     */
     int unicode_kind() const override {
         if (cached_kind != -1) return cached_kind;
 
@@ -66,24 +90,44 @@ public:
         return cached_kind;
     }
 
+    /**
+     * @brief Return the code point at position `index` in the slice.
+     *
+     * Maps to base buffer position `start_index + index`.
+     */
     uint32_t value(Py_ssize_t index) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         return buf->value(start_index + index);
     }
 
+    /**
+     * @brief Copy a range of code points from the slice into a 32-bit target.
+     *
+     * Copies `count` code points starting from `start` (relative to the slice)
+     * into `target`.
+     */
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         buf->copy(target, start_index + start, count);
     }
+    /**
+     * @brief Copy a range of code points into a 16-bit target buffer.
+     */
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         buf->copy(target, start_index + start, count);
     }
+    /**
+     * @brief Copy a range of code points into an 8-bit target buffer.
+     */
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         buf->copy(target, start_index + start, count);
     }
 
+    /**
+     * @brief Produce a Python-level repr for the slice (e.g. "<inner>[start:end]").
+     */
     PyObject* repr() const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         cppy::ptr inner( buf->repr() );
@@ -92,15 +136,22 @@ public:
         return result;
     }
 };
-
-// ============================================================
-// SliceBuffer — slice with arbitrary step (positive or negative)
-// ============================================================
+/**
+ * @brief SliceBuffer — slice with arbitrary (possibly negative) step.
+ *
+ * Extends Slice1Buffer to support arbitrary stepping across the base buffer.
+ */
 class SliceBuffer : public Slice1Buffer {
 protected:
     Py_ssize_t step;
     Py_ssize_t cached_len;
 
+    /**
+     * @brief Compute the number of items in the arithmetic progression
+     *        defined by [start, end) with step `step`.
+     *
+     * Handles both positive and negative steps. Returns 0 for empty ranges.
+     */
     static inline Py_ssize_t compute_len(Py_ssize_t start, Py_ssize_t end, Py_ssize_t step) {
         if (step > 0) {
             if (start >= end) return 0;
@@ -113,33 +164,60 @@ protected:
     }
 
 public:
+    /**
+     * @brief Construct a slice with arbitrary step.
+     *
+     * @param lstr Python object providing a Buffer (borrowed ref).
+     * @param start Start index (inclusive).
+     * @param end End index (exclusive).
+     * @param step_val Step value (non-zero).
+     * @throws std::runtime_error if step_val is zero.
+     */
     SliceBuffer(PyObject *lstr, Py_ssize_t start, Py_ssize_t end, Py_ssize_t step_val)
         : Slice1Buffer(lstr, start, end), step(step_val) {
         if (step == 0) throw std::runtime_error("SliceBuffer: step cannot be zero");
         cached_len = compute_len(start_index, end_index, step);
     }
 
+    /**
+     * @brief Destructor (defaulted).
+     */
     ~SliceBuffer() override = default;
 
+    /**
+     * @brief Length of the strided slice (number of elements when stepping).
+     */
     Py_ssize_t length() const override { return cached_len; }
 
+    /**
+     * @brief Return the code point at logical index `index` in the strided slice.
+     */
     uint32_t value(Py_ssize_t index) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         return buf->value(start_index + index * step);
     }
 
+    /**
+     * @brief Copy a strided range of code points into a 32-bit target buffer.
+     */
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         for (Py_ssize_t i = 0; i < count; ++i) {
             target[i] = buf->value(start_index + (start + i) * step);
         }
     }
+    /**
+     * @brief Copy a strided range of code points into a 16-bit target buffer.
+     */
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         for (Py_ssize_t i = 0; i < count; ++i) {
             target[i] = static_cast<uint16_t>(buf->value(start_index + (start + i) * step));
         }
     }
+    /**
+     * @brief Copy a strided range of code points into an 8-bit target buffer.
+     */
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         for (Py_ssize_t i = 0; i < count; ++i) {
@@ -147,6 +225,9 @@ public:
         }
     }
 
+    /**
+     * @brief Produce a Python-level repr for the strided slice ("<inner>[start:end:step]").
+     */
     PyObject* repr() const override {
         Buffer *buf = get_buffer(lstr_obj.get());
         cppy::ptr inner( buf->repr() );

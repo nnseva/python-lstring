@@ -7,33 +7,66 @@
 #include "buffer.hxx"
 #include <cppy/ptr.h>
 
-// ============================================================
-// JoinBuffer — concatenation of two buffers
-// ============================================================
+/**
+ * @brief JoinBuffer — concatenation of two buffers
+ *
+ * Implements a lazy concatenation view over two Buffer instances.
+ */
 class JoinBuffer : public Buffer {
 private:
     cppy::ptr left_obj;
     cppy::ptr right_obj;
 
 public:
+    /**
+     * @brief Construct a lazy concatenation buffer.
+     *
+     * The JoinBuffer holds references to the two Python objects (which
+     * are expected to provide Buffer implementations) and presents a
+     * concatenated view over them.
+     *
+     * @param left Left operand (borrowed reference)
+     * @param right Right operand (borrowed reference)
+     */
     JoinBuffer(PyObject *left, PyObject *right)
         : left_obj(left, true), right_obj(right, true) {
     }
 
+    /**
+     * @brief Destructor.
+     *
+     * Defaulted; held cppy::ptr members will release their references.
+     */
     ~JoinBuffer() override = default;
 
+    /**
+     * @brief Total length (number of code points) of the concatenated view.
+     *
+     * @return Sum of left->length() and right->length().
+     */
     Py_ssize_t length() const override {
         Buffer *lbuf = get_buffer(left_obj.get());
         Buffer *rbuf = get_buffer(right_obj.get());
         return lbuf->length() + rbuf->length();
     }
 
+    /**
+     * @brief Unicode storage kind required to represent the concatenation.
+     *
+     * Returns the maximum unicode kind required by either side (1/2/4-byte).
+     */
     int unicode_kind() const override {
         Buffer *lbuf = get_buffer(left_obj.get());
         Buffer *rbuf = get_buffer(right_obj.get());
         return std::max(lbuf->unicode_kind(), rbuf->unicode_kind());
     }
 
+    /**
+     * @brief Get the code point value at the given index in the concatenated view.
+     *
+     * @param index Index into the concatenated buffer (0-based).
+     * @return Unicode code point value.
+     */
     uint32_t value(Py_ssize_t index) const override {
         Buffer *lbuf = get_buffer(left_obj.get());
         Py_ssize_t llen = lbuf->length();
@@ -44,6 +77,17 @@ public:
         return rbuf->value(index - llen);
     }
 
+    /**
+     * @brief Copy a range of code points into a 32-bit target buffer.
+     *
+     * Copies `count` code points starting at `start` into `target`.
+     * The implementation splits the copy between left and right buffers
+     * as needed.
+     *
+     * @param target Destination buffer of uint32_t elements.
+     * @param start Start index in the concatenated view.
+     * @param count Number of code points to copy.
+     */
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *lbuf = get_buffer(left_obj.get());
         Buffer *rbuf = get_buffer(right_obj.get());
@@ -60,6 +104,12 @@ public:
         }
     }
 
+    /**
+     * @brief Copy a range of code points into a 16-bit target buffer.
+     *
+     * Same semantics as the uint32_t copy overload but copies into
+     * a UTF-16 buffer.
+     */
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *lbuf = get_buffer(left_obj.get());
         Buffer *rbuf = get_buffer(right_obj.get());
@@ -76,6 +126,12 @@ public:
         }
     }
 
+    /**
+     * @brief Copy a range of code points into an 8-bit target buffer.
+     *
+     * Same semantics as other copy overloads; used when both sides fit
+     * into 1-byte storage.
+     */
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
         Buffer *lbuf = get_buffer(left_obj.get());
         Buffer *rbuf = get_buffer(right_obj.get());
@@ -92,7 +148,12 @@ public:
         }
     }
 
-    // ---------- repr ----------
+    /**
+     * @brief Produce a Python-level repr for the concatenation.
+     *
+     * The returned object is a new Python string describing the concatenation
+     * in the form "(<left_repr> + <right_repr>)".
+     */
     PyObject* repr() const override {
         Buffer *lbuf = get_buffer(left_obj.get());
         Buffer *rbuf = get_buffer(right_obj.get());

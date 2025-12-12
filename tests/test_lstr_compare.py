@@ -1,7 +1,11 @@
+"""Comparison tests for lstring._lstr objects."""
+
 import unittest
 import lstring
 
+
 class TestLStrComparisons(unittest.TestCase):
+    """Tests for equality and ordering comparisons."""
     def setUp(self):
         self.a = lstring._lstr("abc")
         self.b = lstring._lstr("abc")
@@ -10,6 +14,7 @@ class TestLStrComparisons(unittest.TestCase):
         self.e = lstring._lstr("abcd")
 
     def test_equality(self):
+        """Equality and inequality for identical and different contents."""
         # Equal strings
         self.assertTrue(self.a == self.b)
         self.assertFalse(self.a != self.b)
@@ -19,6 +24,7 @@ class TestLStrComparisons(unittest.TestCase):
         self.assertTrue(self.a != self.c)
 
     def test_less_than(self):
+        """Less-than ordering tests, including prefix comparisons."""
         # "abc" < "abd"
         self.assertTrue(self.a < self.c)
         self.assertFalse(self.c < self.a)
@@ -28,11 +34,13 @@ class TestLStrComparisons(unittest.TestCase):
         self.assertFalse(self.a < self.d)
 
     def test_less_equal(self):
+        """Less-than-or-equal comparisons for equal and non-equal values."""
         self.assertTrue(self.a <= self.b)  # equal
         self.assertTrue(self.a <= self.c)  # less
         self.assertFalse(self.c <= self.a)
 
     def test_greater_than(self):
+        """Greater-than ordering tests, corresponding to less-than cases."""
         self.assertTrue(self.c > self.a)
         self.assertFalse(self.a > self.c)
 
@@ -40,11 +48,13 @@ class TestLStrComparisons(unittest.TestCase):
         self.assertFalse(self.d > self.a)
 
     def test_greater_equal(self):
+        """Greater-than-or-equal comparisons for equal and greater values."""
         self.assertTrue(self.a >= self.b)  # equal
         self.assertTrue(self.c >= self.a)  # greater
         self.assertFalse(self.a >= self.c)
 
     def test_prefix_suffix(self):
+        """Ensure prefix/suffix ordering behaves as expected (shorter < longer if prefix)."""
         # "abc" < "abcd"
         self.assertTrue(self.a < self.e)
         self.assertFalse(self.e < self.a)

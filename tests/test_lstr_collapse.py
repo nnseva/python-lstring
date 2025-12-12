@@ -2,48 +2,69 @@ import unittest
 import lstring
 
 class TestLStrCollapse(unittest.TestCase):
+    """Tests for the collapse() behavior of various lazy Buffer implementations.
 
-    def setUp(self):
-        # Ensure tests run with optimization disabled to preserve lazy buffer behavior
+    The class verifies that collapsing lazy views (JoinBuffer, SliceBuffer,
+    MulBuffer) produces concrete Python strings while preserving hash and
+    expected representations.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Disable optimization for predictable lazy-buffer behavior."""
+        cls.original_threshold = lstring.get_optimize_threshold()
         lstring.set_optimize_threshold(0)
 
+    @classmethod
+    def tearDownClass(cls):
+        """Restore optimization threshold after tests."""
+        lstring.set_optimize_threshold(cls.original_threshold)
+
+
     def test_collapse_strbuffer_noop(self):
+        """Collapsing a buffer already backed by a Python str is a no-op.
+
+        The method should return None, leave the string value unchanged,
+        and preserve the object's hash and repr.
+        """
         s = lstring._lstr("hello")
-        # should be a no-op and return None
         before_hash = hash(s)
         before_repr = repr(s)
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "hello")
-        # hash should be preserved
         self.assertEqual(before_hash, hash(s))
-        # repr for StrBuffer-backed objects starts with 'l' + repr(str)
         self.assertEqual(repr(s), before_repr)
         # idempotent
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "hello")
 
     def test_collapse_joinbuffer(self):
+        """Collapsing a JoinBuffer should produce a concrete str equal to the concatenation.
+
+        The repr before collapse should show the join expression; after collapse
+        repr should be the canonical str repr prefixed with 'l'. Hash must be preserved.
+        """
         a = lstring._lstr("foo")
         b = lstring._lstr("bar")
-        s = a + b   # JoinBuffer backing
+        s = a + b
         self.assertEqual(str(s), "foobar")
         before_hash = hash(s)
         before_repr = repr(s)
-        # repr before collapse should reflect the join expression
         self.assertIn("+", before_repr)
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "foobar")
-        # hash preserved
         self.assertEqual(before_hash, hash(s))
-        # repr after collapse should be 'l' + repr of the joined string
         self.assertEqual(repr(s), "l" + repr("foobar"))
-        # idempotent
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "foobar")
 
     def test_collapse_slice1buffer(self):
+        """Continuous slice (step==1) collapses into the expected substring.
+
+        Verifies value, preserved hash, and final repr.
+        """
         s0 = lstring._lstr("012345")
-        s = s0[1:4]   # Slice1Buffer (step == 1)
+        s = s0[1:4]
         self.assertEqual(str(s), "123")
         before_hash = hash(s)
         before_repr = repr(s)
@@ -54,8 +75,9 @@ class TestLStrCollapse(unittest.TestCase):
         self.assertEqual(repr(s), "l" + repr("123"))
 
     def test_collapse_slicebuffer_step(self):
+        """Strided slice collapses into the expected str of selected characters."""
         s0 = lstring._lstr("0123456789")
-        s = s0[::2]   # SliceBuffer (step != 1)
+        s = s0[::2]
         self.assertEqual(str(s), "02468")
         before_hash = hash(s)
         before_repr = repr(s)
@@ -66,8 +88,9 @@ class TestLStrCollapse(unittest.TestCase):
         self.assertEqual(repr(s), "l" + repr("02468"))
 
     def test_collapse_mulbuffer(self):
+        """Repetition buffer collapses into repeated concrete string and preserves hash."""
         s0 = lstring._lstr("ab")
-        s = s0 * 4   # MulBuffer
+        s = s0 * 4
         self.assertEqual(str(s), "abababab")
         before_hash = hash(s)
         before_repr = repr(s)

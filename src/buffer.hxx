@@ -8,24 +8,45 @@
 
 #include "lstring.hxx"
 
-// ============================================================
-// Abstract Buffer
-// ============================================================
+/**
+ * @brief Abstract Buffer base class
+ *
+ * Provides the virtual API for buffer-backed lazy string implementations.
+ */
 class Buffer {
 protected:
-    // Helper to get Buffer* from LStrObject
+    /**
+     * @brief Helper to retrieve the Buffer pointer from an LStrObject PyObject.
+     * @param obj A PyObject pointer expected to be an LStrObject.
+     * @return Buffer* pointer stored inside the LStrObject.
+     */
     static Buffer* get_buffer(PyObject *obj) {
         LStrObject *lstr = reinterpret_cast<LStrObject*>(obj);
         return lstr->buffer;
     }
 
-    // Inline helpers to cast PyUnicode_DATA to proper type
+    /**
+     * @brief Inline helper to treat PyUnicode_DATA as 1-byte storage.
+     * @param s Python unicode object.
+     * @return pointer to ucs1 data.
+     */
     inline const uint8_t* as_ucs1(PyObject* s) const {
         return reinterpret_cast<const uint8_t*>(PyUnicode_DATA(s));
     }
+    /**
+     * @brief Inline helper to treat PyUnicode_DATA as 2-byte storage.
+     * @param s Python unicode object.
+     * @return pointer to ucs2 data.
+     */
     inline const uint16_t* as_ucs2(PyObject* s) const {
         return reinterpret_cast<const uint16_t*>(PyUnicode_DATA(s));
     }
+
+    /**
+     * @brief Inline helper to treat PyUnicode_DATA as 4-byte storage.
+     * @param s Python unicode object.
+     * @return pointer to ucs4 data.
+     */
     inline const uint32_t* as_ucs4(PyObject* s) const {
         return reinterpret_cast<const uint32_t*>(PyUnicode_DATA(s));
     }
@@ -33,24 +54,75 @@ protected:
     Py_hash_t cached_hash;  // cache for computed hash
 
 public:
+    /**
+     * @brief Construct an empty Buffer with a cleared cached hash.
+     */
     Buffer() : cached_hash(-1) {}
+
+    /**
+     * @brief Virtual destructor.
+     */
     virtual ~Buffer() {}
 
+    /**
+     * @brief Return the number of code points in the buffer.
+     */
     virtual Py_ssize_t length() const = 0;
+
+    /**
+     * @brief Return the Python unicode kind (1/2/4 byte) used by this buffer.
+     */
     virtual int unicode_kind() const = 0;
+
+    /**
+     * @brief Read the code point value at `index`.
+     * @param index Position to read (0-based).
+     * @return Unicode code point as uint32_t.
+     */
     virtual uint32_t value(Py_ssize_t index) const = 0;
 
+    /**
+     * @brief Copy code points into a 32-bit target buffer.
+     * @param target Destination buffer of uint32_t entries.
+     * @param start Start index in source buffer.
+     * @param count Number of code points to copy.
+     */
     virtual void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const = 0;
+
+    /**
+     * @brief Copy code points into a 16-bit target buffer.
+     * @param target Destination buffer of uint16_t entries.
+     * @param start Start index in source buffer.
+     * @param count Number of code points to copy.
+     */
     virtual void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const = 0;
+
+    /**
+     * @brief Copy code points into an 8-bit target buffer.
+     * @param target Destination buffer of uint8_t entries.
+     * @param start Start index in source buffer.
+     * @param count Number of code points to copy.
+     */
     virtual void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const = 0;
 
+    /**
+     * @brief Produce a Python-level representation for debugging/repr.
+     * @return New reference to PyObject* or nullptr on error.
+     */
     virtual PyObject* repr() const = 0;
 
-    // Check if the buffer is a string buffer (StrBuffer)
+    /**
+     * @brief Indicate whether this buffer is a StrBuffer wrapping a Python str.
+     * @return false by default; overridden by StrBuffer.
+     */
     virtual bool is_str() const {
         return false;
     }
-    // non-const hash with caching
+
+    /**
+     * @brief Compute or return a cached hash value for this buffer.
+     * @return Py_hash_t hash value.
+     */
     Py_hash_t hash() {
         if (cached_hash != -1) {
             return cached_hash;
@@ -59,7 +131,11 @@ public:
         return cached_hash;
     }
 
-    // alfanumeric comparison
+    /**
+     * @brief Lexicographic comparison between two buffers.
+     * @param other Other buffer to compare with.
+     * @return -1 if *this < other, 0 if equal, 1 if *this > other.
+     */
     int cmp(const Buffer* other) const {
         Py_ssize_t len1 = length();
         Py_ssize_t len2 = other->length();
@@ -77,6 +153,13 @@ public:
     }
 
 private:
+    /**
+     * @brief Compute the hash value for the buffer contents.
+     *
+     * This computes a simple rolling hash over code points and returns a
+     * Py_hash_t. The result is adjusted to avoid the reserved -1 value.
+     * @return computed hash value (never -1).
+     */
     Py_hash_t compute_hash() const {
         Py_ssize_t len = length();
         Py_hash_t x = 0;
