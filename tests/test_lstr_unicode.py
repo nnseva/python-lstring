@@ -3,6 +3,16 @@ import lstring
 
 
 class TestLStrUnicodeKinds(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Ensure tests run with optimization disabled to preserve lazy buffer behavior
+        cls.original_threshold = lstring.get_optimize_threshold()
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls): 
+        # Restore default optimization setting after tests
+        lstring.set_optimize_threshold(cls.original_threshold)
 
     def setUp(self):
         # 1-byte (ASCII/LATIN1 <= 0xFF)

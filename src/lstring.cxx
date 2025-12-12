@@ -12,6 +12,22 @@
 #include "mul_buffer.hxx"
 #include "slice_buffer.hxx"
 
+/*
+ * Global C variable used as optimization threshold. This is intentionally a
+ * process-global C variable to make hot-path reads extremely fast. WARNING:
+ * using a module-global C variable breaks sub-interpreter / per-interpreter
+ * isolation: all interpreters in the process will share this single value.
+ * Use only if you accept this trade-off.
+ */
+static Py_ssize_t g_optimize_threshold = 0;
+
+// Module-level accessors (exposed to Python). These functions access the
+// global C variable above. We expose them as module functions rather than
+// attempting to create a module-level property; functions are simpler and
+// sufficient for tests and control.
+static PyObject* lstring_get_optimize_threshold(PyObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* lstring_set_optimize_threshold(PyObject *self, PyObject *arg);
+
 // ---------- Per-module state ----------
 typedef struct {
     PyObject *LStrType;
@@ -34,7 +50,8 @@ static PyObject* LStr_sq_repeat(PyObject *self, Py_ssize_t count);
 static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key);
 static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op);
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
-static void _collapse(LStrObject *self);
+static void lstr_optimize(LStrObject *self);
+void lstr_collapse(LStrObject *self);
 
 
 // ---------- Type slots ----------
@@ -149,7 +166,7 @@ static PyObject* LStr_repr(LStrObject *self) {
 // If the current buffer already is a StrBuffer (is_str()), do nothing.
 // Otherwise, create a Python string via LStr_str, replace the buffer
 // with the result of make_str_buffer(py_str).
-static void _collapse(LStrObject *self) {
+void lstr_collapse(LStrObject *self) {
     if (!self || !self->buffer) return;
     if (self->buffer->is_str()) return; // already a StrBuffer
 
@@ -168,6 +185,20 @@ static void _collapse(LStrObject *self) {
     // Replace buffer
     delete self->buffer;
     self->buffer = new_buf;
+}
+
+// Optimize: collapse small results based on the module-level optimize
+// threshold (`g_optimize_threshold`). If the threshold is <= 0,
+// optimization is disabled.
+static void lstr_optimize(LStrObject *self) {
+    if (!self || !self->buffer) return;
+    if (self->buffer->is_str()) return;
+    // Use the global C variable for threshold (very fast). See comment by
+    // declaration of g_optimize_threshold about sub-interpreter isolation.
+    if (g_optimize_threshold <= 0) return;
+
+    Py_ssize_t len = (Py_ssize_t)self->buffer->length();
+    if (len < g_optimize_threshold) lstr_collapse(self);
 }
 
 // sq_length: len(lstr)
@@ -229,6 +260,9 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
         return nullptr;
     }
 
+    // Try to optimize/collapse small results
+    lstr_optimize(result);
+
     return result_owner.release();
 }
 
@@ -238,7 +272,7 @@ static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
         PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
         return nullptr;
     }
-    _collapse(self);
+    lstr_collapse(self);
     if (PyErr_Occurred()) return nullptr;
     Py_RETURN_NONE;
 }
@@ -252,12 +286,12 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     }
 
     PyTypeObject *type = Py_TYPE(left);
-    LStrObject *self = (LStrObject*)type->tp_alloc(type, 0);
-    if (!self) return nullptr;
-    cppy::ptr self_owner((PyObject*)self);
+    LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
+    if (!result) return nullptr;
+    cppy::ptr result_owner((PyObject*)result);
 
     try {
-        self->buffer = new JoinBuffer(left, right);
+        result->buffer = new JoinBuffer(left, right);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
@@ -266,7 +300,10 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
         return nullptr;
     }
 
-    return self_owner.release();
+    // Try to optimize/collapse small results
+    lstr_optimize(result);
+
+    return result_owner.release();
 }
 
 // Wrap Py_ssize_t count into PyLong and reuse LStr_mul
@@ -321,6 +358,9 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
         PyErr_SetString(PyExc_RuntimeError, "lstr multiplication failed");
         return nullptr;
     }
+
+    // Try to optimize/collapse small results
+    lstr_optimize(result);
 
     return result_owner.release();
 }
@@ -407,7 +447,32 @@ static PyObject* LStr_str(LStrObject *self) {
 }
 
 // ---------- Module methods ----------
-static PyMethodDef lstring_methods[] = {
+
+// Getter for g_optimize_threshold
+static PyObject* lstring_get_optimize_threshold(PyObject *self, PyObject *Py_UNUSED(ignored)) {
+    return PyLong_FromSsize_t(g_optimize_threshold);
+}
+
+// Setter: accepts an int (or clears when None)
+static PyObject* lstring_set_optimize_threshold(PyObject *self, PyObject *arg) {
+    if (arg == Py_None) {
+        g_optimize_threshold = 0;
+        Py_RETURN_NONE;
+    }
+    if (!PyLong_Check(arg)) {
+        PyErr_SetString(PyExc_TypeError, "optimize_threshold must be int or None");
+        return nullptr;
+    }
+    Py_ssize_t v = PyLong_AsSsize_t(arg);
+    if (v == -1 && PyErr_Occurred()) return nullptr;
+    g_optimize_threshold = v;
+    Py_RETURN_NONE;
+}
+
+// Extend lstring_methods with our new functions
+static PyMethodDef lstring_module_methods[] = {
+    {"get_optimize_threshold", (PyCFunction)lstring_get_optimize_threshold, METH_NOARGS, "Get global C optimize threshold (process-global)"},
+    {"set_optimize_threshold", (PyCFunction)lstring_set_optimize_threshold, METH_O, "Set global C optimize threshold (process-global)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -432,6 +497,14 @@ static int lstring_mod_exec(PyObject *module) {
     PyObject *type_obj = PyType_FromSpec(&LStr_spec);
     if (!type_obj) return -1;
     st->LStrType = type_obj;
+    // Note: optimization threshold is controlled by the module-level
+    // accessors which manipulate the process-global C variable
+    // `g_optimize_threshold`. Use `lstring.get_optimize_threshold()` and
+    // `lstring.set_optimize_threshold()` to query or change this value.
+    // Using a process-global C variable provides the fastest hot-path
+    // checks but breaks sub-interpreter isolation: all interpreters in
+    // the process share the same threshold value.
+
     if (PyModule_AddObject(module, "_lstr", st->LStrType) < 0) {
         Py_CLEAR(st->LStrType);
         return -1;
@@ -449,7 +522,7 @@ static struct PyModuleDef lstring_def = {
     "lstring",
     "Module providing lazy string class 'lstr' for deferred buffer access",
     sizeof(lstring_state),
-    lstring_methods,
+    lstring_module_methods,
     lstring_slots,
     lstring_traverse,
     lstring_clear,

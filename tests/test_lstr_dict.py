@@ -2,6 +2,17 @@ import unittest
 import lstring
 
 class TestLStrHashMapping1(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Ensure tests run with optimization disabled to preserve lazy buffer behavior
+        cls.original_threshold = lstring.get_optimize_threshold()
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls): 
+        # Restore default optimization setting after tests
+        lstring.set_optimize_threshold(cls.original_threshold)
+
     def test_equal_strings_same_key(self):
         a1 = lstring._lstr("abc")
         a2 = lstring._lstr("abc")

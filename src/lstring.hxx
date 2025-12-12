@@ -12,4 +12,7 @@ typedef struct {
     Buffer *buffer;
 } LStrObject;
 
+// Forward declaration: collapse helper for lstr
+extern void lstr_collapse(LStrObject *self);
+
 #endif // LSTRING_HXX

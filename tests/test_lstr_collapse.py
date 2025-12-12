@@ -3,6 +3,10 @@ import lstring
 
 class TestLStrCollapse(unittest.TestCase):
 
+    def setUp(self):
+        # Ensure tests run with optimization disabled to preserve lazy buffer behavior
+        lstring.set_optimize_threshold(0)
+
     def test_collapse_strbuffer_noop(self):
         s = lstring._lstr("hello")
         # should be a no-op and return None
