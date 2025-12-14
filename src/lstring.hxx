@@ -33,4 +33,36 @@ typedef struct {
  */
 extern void lstr_collapse(LStrObject *self);
 
+/* Forward declarations of lstr type methods. */
+PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
+void LStr_dealloc(LStrObject *self);
+Py_hash_t LStr_hash(LStrObject *self);
+PyObject* LStr_repr(LStrObject *self);
+PyObject* LStr_add(PyObject *left, PyObject *right);
+PyObject* LStr_mul(PyObject *left, PyObject *right);
+PyObject* LStr_str(LStrObject *self);
+Py_ssize_t LStr_sq_length(PyObject *self);
+PyObject* LStr_subscript(PyObject *self_obj, PyObject *key);
+PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op);
+PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
+PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
+void lstr_optimize(LStrObject *self);
+
+/**
+ * @brief Module-local state structure used by the multi-phase init.
+ *
+ * Declared here so multiple implementation units can reference it
+ * without defining it multiple times.
+ */
+typedef struct {
+    PyObject *LStrType;
+} lstring_state;
+
+/**
+ * @brief Retrieve the per-module state for the lstring module.
+ *
+ * Implemented in lstring_module.cxx.
+ */
+extern lstring_state* get_lstring_state(PyObject *module);
+
 #endif // LSTRING_HXX

@@ -4,7 +4,7 @@ from setuptools.command.build_ext import build_ext
 ext_modules = [
     Extension(
         name='lstring',
-        sources=['src/lstring.cxx'],
+        sources=['src/lstring.cxx', 'src/lstring_module.cxx'],
         include_dirs=['.'],
         depends=[
             'src/buffer.hxx',
