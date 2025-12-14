@@ -8,6 +8,13 @@
 
 #include "lstring.hxx"
 
+/**
+ * @brief Module-local state structure used by the multi-phase init.
+ */
+struct lstring_state {
+    PyObject *LStrType;
+};
+
 // The LStr_spec is defined in the implementation file for the type.
 extern PyType_Spec LStr_spec;
 
@@ -39,7 +46,7 @@ static PyObject* lstring_set_optimize_threshold(PyObject *self, PyObject *arg) {
 /* Per-module state is declared in lstring.hxx; provide the definition
  * for the getter so other translation units can call it.
  */
-lstring_state* get_lstring_state(PyObject *module) {
+inline static lstring_state* get_lstring_state(PyObject *module) {
     return (lstring_state*)PyModule_GetState(module);
 }
 

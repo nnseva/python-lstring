@@ -7,28 +7,24 @@
 #include <cstdio>
 
 #include "lstring.hxx"
+#include "lstring_utils.hxx"
 #include "buffer.hxx"
 #include "str_buffer.hxx"
 #include "join_buffer.hxx"
 #include "mul_buffer.hxx"
 #include "slice_buffer.hxx"
 
-extern Py_ssize_t g_optimize_threshold;
-
- 
-
-
-/**
- * @brief Method table for the lstr type.
- *
- * Contains Python-callable methods exposed on the `_lstr` type. Each entry
- * maps a method name to a C function and calling convention.
- */
-static PyMethodDef LStr_methods[] = {
-    {"collapse", (PyCFunction)LStr_collapse, METH_NOARGS, "Collapse internal buffer to a contiguous str buffer"},
-    {"find", (PyCFunction)LStr_find, METH_VARARGS | METH_KEYWORDS, "Find substring like str.find(sub, start=None, end=None)"},
-    {nullptr, nullptr, 0, nullptr}
-};
+/* Forward declarations of lstr type methods. */
+static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
+static void LStr_dealloc(LStrObject *self);
+static Py_hash_t LStr_hash(LStrObject *self);
+static PyObject* LStr_repr(LStrObject *self);
+static PyObject* LStr_add(PyObject *left, PyObject *right);
+static PyObject* LStr_mul(PyObject *left, PyObject *right);
+static PyObject* LStr_str(LStrObject *self);
+static Py_ssize_t LStr_sq_length(PyObject *self);
+static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key);
+static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op);
 
 /**
  * @brief Type slots for `_lstr` used to create the heap type from spec.
@@ -67,36 +63,12 @@ PyType_Spec LStr_spec = {
 };
 
 /**
- * @brief Build a StrBuffer wrapper for a Python str.
- *
- * The returned StrBuffer takes ownership of any required state and wraps
- * the provided Python string. On error, nullptr is returned and a Python
- * exception is set.
- *
- * @param py_str Python str object (borrowed reference)
- * @return New StrBuffer* or nullptr on error.
- */
-static StrBuffer* make_str_buffer(PyObject *py_str) {
-    switch (PyUnicode_KIND(py_str)) {
-        case PyUnicode_1BYTE_KIND:
-            return new Str8Buffer(py_str);
-        case PyUnicode_2BYTE_KIND:
-            return new Str16Buffer(py_str);
-        case PyUnicode_4BYTE_KIND:
-            return new Str32Buffer(py_str);
-        default:
-            PyErr_SetString(PyExc_RuntimeError, "Unsupported Unicode kind");
-            return nullptr;
-    }
-}
-
-/**
  * @brief __new__ implementation for `_lstr`.
  *
  * Expects a single Python str argument and creates a new `_lstr` instance
  * wrapping a StrBuffer that references the string.
  */
-PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     static const char *kwlist[] = {"string", nullptr};
     PyObject *py_str = nullptr;
 
@@ -131,7 +103,7 @@ PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
  *
  * Frees the internal Buffer and releases the object memory.
  */
-void LStr_dealloc(LStrObject *self) {
+static void LStr_dealloc(LStrObject *self) {
     if (self->buffer) {
         delete self->buffer;
         self->buffer = nullptr;
@@ -144,7 +116,7 @@ void LStr_dealloc(LStrObject *self) {
  *
  * Delegates to the underlying Buffer's cached hash implementation.
  */
-Py_hash_t LStr_hash(LStrObject *self) {
+static Py_hash_t LStr_hash(LStrObject *self) {
     if (!self->buffer) {
         PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
         return -1;
@@ -157,7 +129,7 @@ Py_hash_t LStr_hash(LStrObject *self) {
  *
  * Returns the number of code points in the underlying buffer.
  */
-Py_ssize_t LStr_sq_length(PyObject *self) {
+static Py_ssize_t LStr_sq_length(PyObject *self) {
     return ((LStrObject*)self)->buffer->length();
 }
 
@@ -166,7 +138,7 @@ Py_ssize_t LStr_sq_length(PyObject *self) {
  *
  * Produces a Python string representing the lstr; delegates to Buffer::repr.
  */
-PyObject* LStr_repr(LStrObject *self) {
+static PyObject* LStr_repr(LStrObject *self) {
     if (!self->buffer) {
         PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
         return nullptr;
@@ -176,58 +148,12 @@ PyObject* LStr_repr(LStrObject *self) {
 }
 
 /**
- * @brief Convert any non-StrBuffer into a concrete StrBuffer backed by a
- *        Python str.
- *
- * If the buffer already wraps a Python string, this is a no-op. On error
- * this function propagates the Python exception and leaves the object
- * unchanged.
- */
-void lstr_collapse(LStrObject *self) {
-    if (!self || !self->buffer) return;
-    if (self->buffer->is_str()) return; // already a StrBuffer
-
-    cppy::ptr py( LStr_str(self) );
-    if (!py) {
-        // propagate error to caller by leaving state unchanged
-        return;
-    }
-
-    // Create new StrBuffer from the Python string
-    StrBuffer *new_buf = make_str_buffer(py.get());
-    if (!new_buf) {
-        return; // make_str_buffer sets an error
-    }
-
-    // Replace buffer
-    delete self->buffer;
-    self->buffer = new_buf;
-}
-
-/**
- * @brief Try to collapse small lazy buffers into concrete StrBuffers.
- *
- * Uses the process-global `g_optimize_threshold` to decide whether to
- * collapse. If the threshold is inactive (<= 0), this is a no-op.
- */
-void lstr_optimize(LStrObject *self) {
-    if (!self || !self->buffer) return;
-    if (self->buffer->is_str()) return;
-    // Use the global C variable for threshold (very fast). See comment by
-    // declaration of g_optimize_threshold about sub-interpreter isolation.
-    if (g_optimize_threshold <= 0) return;
-
-    Py_ssize_t len = (Py_ssize_t)self->buffer->length();
-    if (len < g_optimize_threshold) lstr_collapse(self);
-}
-
-/**
  * @brief Support for indexing and slicing (`obj[index]` / `obj[start:stop:step]`).
  *
  * Returns a newly allocated `str` for single-index lookups and a new
  * `_lstr` instance for slices.
  */
-PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
+static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     LStrObject *self = (LStrObject*)self_obj;
     Py_ssize_t length = self->buffer->length();
 
@@ -287,151 +213,13 @@ PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
 }
 
 /**
- * @brief Find method: search for a substring in the lstr.
- *
- * Signature: find(self, sub, start=None, end=None)
- * Accepts `sub` as either a Python str or another _lstr. Negative start/end
- * are interpreted as offsets from the end (slice semantics). Returns the
- * lowest index where sub is found, or -1 if not found.
- */
-PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
-    static char *kwlist[] = {(char*)"sub", (char*)"start", (char*)"end", nullptr};
-    PyObject *sub_obj = nullptr;
-    PyObject *start_obj = Py_None;
-    PyObject *end_obj = Py_None;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OO:find", kwlist,
-                                     &sub_obj, &start_obj, &end_obj)) {
-        return nullptr;
-    }
-
-    // Validate source buffer
-    if (!self || !self->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
-        return nullptr;
-    }
-    Buffer *src = self->buffer;
-    Py_ssize_t src_len = (Py_ssize_t)src->length();
-
-    // Obtain a Buffer for sub: accept Python str or _lstr
-    Buffer *sub_buf = nullptr;
-    cppy::ptr sub_owner;
-    if (PyUnicode_Check(sub_obj)) {
-    // wrap Python str into a temporary `_lstr` and own it in sub_owner
-        PyTypeObject *type = Py_TYPE(self);
-        PyObject *tmp = type->tp_alloc(type, 0);
-        if (!tmp) {
-            PyErr_SetString(PyExc_RuntimeError, "temporary lstr allocation failed");
-            return nullptr;
-        }
-        sub_owner = cppy::ptr(tmp);
-        StrBuffer *sb = make_str_buffer(sub_obj);
-        if (!sb) return nullptr;
-        ((LStrObject*)tmp)->buffer = sb;
-        sub_buf = sb;
-    } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
-        // assume it's an _lstr-like object
-        LStrObject *lsub = (LStrObject*)sub_obj;
-        if (!lsub->buffer) {
-            PyErr_SetString(PyExc_RuntimeError, "substring lstr has no buffer");
-            return nullptr;
-        }
-        sub_owner = cppy::ptr(sub_obj, true); // incref
-        sub_buf = lsub->buffer;
-    } else {
-        PyErr_SetString(PyExc_TypeError, "sub must be str or _lstr");
-        return nullptr;
-    }
-
-    Py_ssize_t sub_len = (Py_ssize_t)sub_buf->length();
-
-    // Parse start
-    Py_ssize_t start;
-    if (start_obj == Py_None) {
-        start = 0;
-    } else {
-        if (!PyLong_Check(start_obj)) {
-            PyErr_SetString(PyExc_TypeError, "start/end must be int or None");
-            return nullptr;
-        }
-        start = PyLong_AsSsize_t(start_obj);
-        if (start == -1 && PyErr_Occurred()) return nullptr;
-        if (start < 0) start += src_len;
-    }
-
-    // Parse end
-    Py_ssize_t end;
-    if (end_obj == Py_None) {
-        end = src_len;
-    } else {
-        if (!PyLong_Check(end_obj)) {
-            PyErr_SetString(PyExc_TypeError, "start/end must be int or None");
-            return nullptr;
-        }
-        end = PyLong_AsSsize_t(end_obj);
-        if (end == -1 && PyErr_Occurred()) return nullptr;
-        if (end < 0) end += src_len;
-    }
-
-    // Clamp start/end per Python semantics
-    if (start < 0) start = 0;
-    if (end < 0) end = 0;
-    if (start > src_len) {
-        // start beyond end -> not found
-        return PyLong_FromLong(-1);
-    }
-    if (end > src_len) end = src_len;
-
-    // Empty substring is found at start if start<=len, but if start==len
-    // it's allowed (empty at end). If start > len we already returned -1.
-    if (sub_len == 0) {
-        return PyLong_FromSsize_t(start);
-    }
-
-    // If the remaining region is shorter than sub, not found
-    if (end - start < sub_len) {
-        return PyLong_FromLong(-1);
-    }
-
-    // Element-wise scanning using buffer->value()
-    Py_ssize_t last = end - sub_len;
-    for (Py_ssize_t i = start; i <= last; ++i) {
-        bool match = true;
-        for (Py_ssize_t j = 0; j < sub_len; ++j) {
-            uint32_t a = src->value(i + j);
-            uint32_t b = sub_buf->value(j);
-            if (a != b) { match = false; break; }
-        }
-        if (match) return PyLong_FromSsize_t(i);
-    }
-
-    return PyLong_FromLong(-1);
-}
-
-/**
- * @brief Python method wrapper: collapse(self)
- *
- * Exposes the internal `lstr_collapse` helper as a Python-callable
- * method.
- */
-PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
-    if (!self) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
-        return nullptr;
-    }
-    lstr_collapse(self);
-    if (PyErr_Occurred()) return nullptr;
-    Py_RETURN_NONE;
-}
-
-/**
  * @brief Numeric add handler for `_lstr`.
  *
  * Supports `_lstr + _lstr` and mixed `_lstr + str` / `str + _lstr` where
  * a Python `str` operand is wrapped into a temporary `_lstr` backed by a
  * StrBuffer.
  */
-PyObject* LStr_add(PyObject *left, PyObject *right) {
+static PyObject* LStr_add(PyObject *left, PyObject *right) {
     // Allow mixing `_lstr` and Python `str`.
     bool left_is_str = PyUnicode_Check(left);
     bool right_is_str = PyUnicode_Check(right);    
@@ -508,7 +296,7 @@ PyObject* LStr_add(PyObject *left, PyObject *right) {
  *
  * Supports `_lstr * int` and `int * _lstr`.
  */
-PyObject* LStr_mul(PyObject *left, PyObject *right) {
+static PyObject* LStr_mul(PyObject *left, PyObject *right) {
     PyObject *lstr_obj = nullptr;
     PyObject *count_obj = nullptr;
 
@@ -564,7 +352,7 @@ PyObject* LStr_mul(PyObject *left, PyObject *right) {
  * Implements equality/ordering by delegating to the underlying Buffer
  * comparison. For EQ/NE a cheap hash comparison is attempted first.
  */
-PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
+static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
     if (Py_TYPE(a) != Py_TYPE(b)) {
         Py_RETURN_NOTIMPLEMENTED;
     }
@@ -607,7 +395,7 @@ PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
  * returned with an owned reference; otherwise a new Python string is
  * created and populated from the Buffer's contents.
  */
-PyObject* LStr_str(LStrObject *self) {
+static PyObject* LStr_str(LStrObject *self) {
     Buffer *buf = self->buffer;
     if (!buf) {
         PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");

@@ -4,7 +4,12 @@ from setuptools.command.build_ext import build_ext
 ext_modules = [
     Extension(
         name='lstring',
-        sources=['src/lstring.cxx', 'src/lstring_module.cxx'],
+        sources=[
+            'src/lstring.cxx',
+            'src/lstring_methods.cxx',
+            'src/lstring_utils.cxx',
+            'src/lstring_module.cxx'
+        ],
         include_dirs=['.'],
         depends=[
             'src/buffer.hxx',
@@ -13,6 +18,7 @@ ext_modules = [
             'src/slice_buffer.hxx',
             'src/str_buffer.hxx',
             'src/lstring.hxx',
+            'src/lstring_utils.hxx',
         ],
         language='c++',
     ),
