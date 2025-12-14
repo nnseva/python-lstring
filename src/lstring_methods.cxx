@@ -128,6 +128,17 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
         return PyLong_FromLong(-1);
     }
 
+    // Fast-path: if both source and substring are string-backed buffers,
+    // delegate to the built-in Python unicode find implementation which is
+    // optimized in C and understands Python slice semantics.
+    if (src->is_str() && sub_buf->is_str()) {
+        PyObject *src_py = ((StrBuffer*)src)->get_str();
+        PyObject *sub_py = ((StrBuffer*)sub_buf)->get_str();
+        Py_ssize_t idx = PyUnicode_Find(src_py, sub_py, start, end, 1); // direction=1 -> find
+        if (idx == -1 && PyErr_Occurred()) return nullptr;
+        return PyLong_FromSsize_t(idx);
+    }
+
     // Element-wise scanning using buffer->value()
     Py_ssize_t last = end - sub_len;
     for (Py_ssize_t i = start; i <= last; ++i) {
@@ -240,6 +251,16 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
     // If remaining region is shorter than sub, not found
     if (end - start < sub_len) {
         return PyLong_FromLong(-1);
+    }
+
+    // Fast-path: if both source and substring are string-backed buffers,
+    // delegate to Python unicode rfind via PyUnicode_Find with direction=-1.
+    if (src->is_str() && sub_buf->is_str()) {
+        PyObject *src_py = ((StrBuffer*)src)->get_str();
+        PyObject *sub_py = ((StrBuffer*)sub_buf)->get_str();
+        Py_ssize_t idx = PyUnicode_Find(src_py, sub_py, start, end, -1); // direction=-1 -> rfind
+        if (idx == -1 && PyErr_Occurred()) return nullptr;
+        return PyLong_FromSsize_t(idx);
     }
 
     // Scan from the right: i goes from last down to start
