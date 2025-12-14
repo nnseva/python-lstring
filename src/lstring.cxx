@@ -80,22 +80,10 @@ static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
         return nullptr;
     }
 
-    LStrObject *self = (LStrObject*)type->tp_alloc(type, 0);
-    if (!self) return nullptr;
-    cppy::ptr self_owner((PyObject*)self);
-
-    try {
-        self->buffer = make_str_buffer(py_str);
-        if (!self->buffer) return nullptr; // make_str_buffer sets PyErr on failure
-    } catch (const std::exception &e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-        return nullptr;
-    } catch (...) {
-        PyErr_SetString(PyExc_RuntimeError, "Buffer allocation failed");
-        return nullptr;
-    }
-
-    return self_owner.release();
+    // Delegate allocation+initialization to helper that constructs an
+    // _lstr instance from a Python str.
+    PyObject *obj = make_lstr_from_pystr(type, py_str);
+    return obj;
 }
 
 /**
@@ -250,21 +238,15 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     }
     cppy::ptr left_owner, right_owner;
     if(left_is_str) {
-        PyObject *new_left = type->tp_alloc(type, 0);
+        PyObject *new_left = make_lstr_from_pystr(type, left);
         if (!new_left) return nullptr;
         left_owner = cppy::ptr(new_left);
         right_owner = cppy::ptr(right, true);
-        StrBuffer *buf = make_str_buffer(left);
-        if(!buf) return nullptr; // make_str_buffer sets PyErr on failure
-        ((LStrObject *)left_owner.get())->buffer = buf;
     } else if(right_is_str) {
-        PyObject *new_right = type->tp_alloc(type, 0);
+        PyObject *new_right = make_lstr_from_pystr(type, right);
         if (!new_right) return nullptr;
         right_owner = cppy::ptr(new_right);
         left_owner = cppy::ptr(left, true);
-        StrBuffer *buf = make_str_buffer(right);
-        if(!buf) return nullptr; // make_str_buffer sets PyErr on failure
-        ((LStrObject *)right_owner.get())->buffer = buf;
     } else {
         left_owner = cppy::ptr(left, true);
         right_owner = cppy::ptr(right, true);

@@ -15,22 +15,39 @@ import argparse
 from lstring import _lstr
 
 
-def build_test_strings(total_len=10_000_000, fragment=b"needle"):
-    # base chunk to repeat (ascii safe)
-    chunk = b"a" * 1024
-    # compute repeats to get near total_len
-    repeats = total_len // len(chunk)
-    data = chunk * repeats
+def build_test_strings(total_len=10_000_000, fragment="needle", filler="a"):
+    # Compute how many filler characters to place on the left and right of fragment.
+    frag_len = len(fragment)
+    if frag_len > total_len:
+        raise ValueError("fragment length must be <= total_len")
 
-    # place fragment near the middle
-    mid = len(data) // 2
-    pos = mid - len(fragment) // 2
-    data = data[:pos] + fragment + data[pos+len(fragment):]
+    # number of filler characters to place before fragment
+    left_len = (total_len - frag_len) // 2
+    # remainder goes to the right side to make total length exact
+    right_len = total_len - frag_len - left_len
+
+    # Build left and right using filler of arbitrary length
+    if filler == "":
+        raise ValueError("filler must be non-empty")
+    flen = len(filler)
+
+    # ensure we have enough repeats then slice to exact character count
+    def build_side(n):
+        if n <= 0:
+            return ""
+        repeats = (n // flen) + 1
+        return (filler * repeats)[:n]
+
+    left = build_side(left_len)
+    right = build_side(right_len)
+
+    data = left + fragment + right
 
     # return both Python str and _lstr wrapping the same content
-    py = data.decode('ascii')
+    py = data
     lz = _lstr(py)
-    return py, lz, py[pos:pos+len(fragment)]
+    pos = left_len
+    return py, lz, py[pos:pos+frag_len]
 
 
 def time_find(py, lz, sub, runs=5):
@@ -63,7 +80,7 @@ def main():
     args = parser.parse_args()
 
     print(f"Building test strings of size {args.size}...")
-    py, lz, sub = build_test_strings(total_len=args.size, fragment=b"needle")
+    py, lz, sub = build_test_strings(total_len=args.size, fragment="needle")
     print("Built. Running benchmarks...")
 
     py_times, lz_times = time_find(py, lz, sub, runs=args.runs)

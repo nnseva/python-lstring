@@ -78,3 +78,36 @@ void lstr_optimize(LStrObject *self) {
     Py_ssize_t len = (Py_ssize_t)self->buffer->length();
     if (len < g_optimize_threshold) lstr_collapse(self);
 }
+
+
+/**
+ * @brief Create a new _lstr instance (heap type `type`) that wraps the
+ *        provided Python string `py_str`.
+ *
+ * The function allocates the object via tp_alloc, builds a StrBuffer for
+ * the given Python string, and returns an owned reference to the new
+ * object. On error, nullptr is returned and a Python exception is set.
+ */
+PyObject* make_lstr_from_pystr(PyTypeObject *type, PyObject *py_str) {
+    if (!PyUnicode_Check(py_str)) {
+        PyErr_SetString(PyExc_TypeError, "py_str must be a str");
+        return nullptr;
+    }
+
+    LStrObject *self = (LStrObject*)type->tp_alloc(type, 0);
+    if (!self) return nullptr;
+    cppy::ptr self_owner((PyObject*)self);
+
+    try {
+        self->buffer = make_str_buffer(py_str);
+        if (!self->buffer) return nullptr; // make_str_buffer sets PyErr
+    } catch (const std::exception &e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    } catch (...) {
+        PyErr_SetString(PyExc_RuntimeError, "Buffer allocation failed");
+        return nullptr;
+    }
+
+    return self_owner.release();
+}

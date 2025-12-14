@@ -56,18 +56,12 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
     Buffer *sub_buf = nullptr;
     cppy::ptr sub_owner;
     if (PyUnicode_Check(sub_obj)) {
-        // wrap Python str into a temporary `_lstr` and own it in sub_owner
+        // wrap Python str into a temporary `_lstr` via factory and own it
         PyTypeObject *type = Py_TYPE(self);
-        PyObject *tmp = type->tp_alloc(type, 0);
-        if (!tmp) {
-            PyErr_SetString(PyExc_RuntimeError, "temporary lstr allocation failed");
-            return nullptr;
-        }
+        PyObject *tmp = make_lstr_from_pystr(type, sub_obj);
+        if (!tmp) return nullptr;
         sub_owner = cppy::ptr(tmp);
-    StrBuffer *sb = make_str_buffer(sub_obj);
-    if (!sb) return nullptr;
-    ((LStrObject*)tmp)->buffer = sb;
-    sub_buf = sb;
+        sub_buf = ((LStrObject*)tmp)->buffer;
     } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
         // assume it's an _lstr-like object
         LStrObject *lsub = (LStrObject*)sub_obj;
