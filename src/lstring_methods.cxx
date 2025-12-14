@@ -11,6 +11,7 @@
 
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
 static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds);
 
 /**
  * @brief Method table for the lstr type.
@@ -21,6 +22,7 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
 PyMethodDef LStr_methods[] = {
     {"collapse", (PyCFunction)LStr_collapse, METH_NOARGS, "Collapse internal buffer to a contiguous str buffer"},
     {"find", (PyCFunction)LStr_find, METH_VARARGS | METH_KEYWORDS, "Find substring like str.find(sub, start=None, end=None)"},
+    {"rfind", (PyCFunction)LStr_rfind, METH_VARARGS | METH_KEYWORDS, "Find last occurrence like str.rfind(sub, start=None, end=None)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -136,6 +138,121 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
             if (a != b) { match = false; break; }
         }
         if (match) return PyLong_FromSsize_t(i);
+    }
+
+    return PyLong_FromLong(-1);
+}
+
+
+/**
+ * @brief rfind(self, sub, start=None, end=None)
+ *
+ * Mirrors semantics of str.rfind: returns highest index where sub is
+ * found in the slice [start:end], or -1 if not found.
+ */
+static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"sub", (char*)"start", (char*)"end", nullptr};
+    PyObject *sub_obj = nullptr;
+    PyObject *start_obj = Py_None;
+    PyObject *end_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OO:rfind", kwlist,
+                                     &sub_obj, &start_obj, &end_obj)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        return nullptr;
+    }
+    Buffer *src = self->buffer;
+    Py_ssize_t src_len = (Py_ssize_t)src->length();
+
+    // Obtain sub buffer (str or _lstr)
+    Buffer *sub_buf = nullptr;
+    cppy::ptr sub_owner;
+    if (PyUnicode_Check(sub_obj)) {
+        PyTypeObject *type = Py_TYPE(self);
+        PyObject *tmp = make_lstr_from_pystr(type, sub_obj);
+        if (!tmp) return nullptr;
+        sub_owner = cppy::ptr(tmp);
+        sub_buf = ((LStrObject*)tmp)->buffer;
+    } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
+        LStrObject *lsub = (LStrObject*)sub_obj;
+        if (!lsub->buffer) {
+            PyErr_SetString(PyExc_RuntimeError, "substring lstr has no buffer");
+            return nullptr;
+        }
+        sub_owner = cppy::ptr(sub_obj, true);
+        sub_buf = lsub->buffer;
+    } else {
+        PyErr_SetString(PyExc_TypeError, "sub must be str or _lstr");
+        return nullptr;
+    }
+
+    Py_ssize_t sub_len = (Py_ssize_t)sub_buf->length();
+
+    // Parse start
+    Py_ssize_t start;
+    if (start_obj == Py_None) {
+        start = 0;
+    } else {
+        if (!PyLong_Check(start_obj)) {
+            PyErr_SetString(PyExc_TypeError, "start/end must be int or None");
+            return nullptr;
+        }
+        start = PyLong_AsSsize_t(start_obj);
+        if (start == -1 && PyErr_Occurred()) return nullptr;
+        if (start < 0) start += src_len;
+    }
+
+    // Parse end
+    Py_ssize_t end;
+    if (end_obj == Py_None) {
+        end = src_len;
+    } else {
+        if (!PyLong_Check(end_obj)) {
+            PyErr_SetString(PyExc_TypeError, "start/end must be int or None");
+            return nullptr;
+        }
+        end = PyLong_AsSsize_t(end_obj);
+        if (end == -1 && PyErr_Occurred()) return nullptr;
+        if (end < 0) end += src_len;
+    }
+
+    // Clamp start/end per Python semantics
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (start > src_len) {
+        // start beyond end -> not found
+        return PyLong_FromLong(-1);
+    }
+    if (end > src_len) end = src_len;
+
+    // Empty substring behavior: return end if sub_len == 0 (rfind rules)
+    if (sub_len == 0) {
+        // For rfind, empty substring is found at min(end, src_len)
+        Py_ssize_t pos = end;
+        if (pos > src_len) pos = src_len;
+        return PyLong_FromSsize_t(pos);
+    }
+
+    // If remaining region is shorter than sub, not found
+    if (end - start < sub_len) {
+        return PyLong_FromLong(-1);
+    }
+
+    // Scan from the right: i goes from last down to start
+    Py_ssize_t last = end - sub_len;
+    for (Py_ssize_t i = last; i >= start; --i) {
+        bool match = true;
+        for (Py_ssize_t j = 0; j < sub_len; ++j) {
+            uint32_t a = src->value(i + j);
+            uint32_t b = sub_buf->value(j);
+            if (a != b) { match = false; break; }
+        }
+        if (match) return PyLong_FromSsize_t(i);
+        if (i == 0) break; // prevent underflow for Py_ssize_t
     }
 
     return PyLong_FromLong(-1);
