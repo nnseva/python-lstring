@@ -117,6 +117,27 @@ public:
     PyObject* get_str() const {
         return py_str.get();
     }
+
+    /**
+     * @brief Find a single code point in the wrapped Python string.
+     *
+     * Uses PyUnicode_FindChar which understands Python slice semantics and
+     * is implemented efficiently in CPython. start/end are used as given.
+     */
+    Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        PyObject *s = py_str.get();
+        Py_ssize_t idx = PyUnicode_FindChar(s, (Py_UCS4)ch, start, end, 1);
+        return idx;
+    }
+
+    /**
+     * @brief Find a single code point searching from the right.
+     */
+    Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        PyObject *s = py_str.get();
+        Py_ssize_t idx = PyUnicode_FindChar(s, (Py_UCS4)ch, start, end, -1);
+        return idx;
+    }
 };
 
 /**

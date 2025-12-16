@@ -12,6 +12,8 @@
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
 static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds);
 
 /**
  * @brief Method table for the lstr type.
@@ -23,6 +25,8 @@ PyMethodDef LStr_methods[] = {
     {"collapse", (PyCFunction)LStr_collapse, METH_NOARGS, "Collapse internal buffer to a contiguous str buffer"},
     {"find", (PyCFunction)LStr_find, METH_VARARGS | METH_KEYWORDS, "Find substring like str.find(sub, start=None, end=None)"},
     {"rfind", (PyCFunction)LStr_rfind, METH_VARARGS | METH_KEYWORDS, "Find last occurrence like str.rfind(sub, start=None, end=None)"},
+    {"findc", (PyCFunction)LStr_findc, METH_VARARGS | METH_KEYWORDS, "Find single code point: findc(ch, start=None, end=None)"},
+    {"rfindc", (PyCFunction)LStr_rfindc, METH_VARARGS | METH_KEYWORDS, "Find single code point from right: rfindc(ch, start=None, end=None)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -294,4 +298,144 @@ static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
     lstr_collapse(self);
     if (PyErr_Occurred()) return nullptr;
     Py_RETURN_NONE;
+}
+
+
+/**
+ * findc(self, ch, start=None, end=None)
+ * Accept ch as int (code point) or a one-character str. Delegate to
+ * buffer->findc with mapped indices and return slice-relative index or -1.
+ */
+static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"ch", (char*)"start", (char*)"end", nullptr};
+    PyObject *ch_obj = nullptr;
+    PyObject *start_obj = Py_None;
+    PyObject *end_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OO:findc", kwlist,
+                                     &ch_obj, &start_obj, &end_obj)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t buf_len = (Py_ssize_t)buf->length();
+
+    // parse ch: accept int or 1-char str
+    uint32_t ch;
+    if (PyLong_Check(ch_obj)) {
+        long tmp = PyLong_AsLong(ch_obj);
+        if (tmp < 0) {
+            PyErr_SetString(PyExc_ValueError, "ch must be a non-negative code point");
+            return nullptr;
+        }
+        ch = (uint32_t)tmp;
+    } else if (PyUnicode_Check(ch_obj)) {
+        if (PyUnicode_GetLength(ch_obj) != 1) {
+            PyErr_SetString(PyExc_ValueError, "ch must be a single character string");
+            return nullptr;
+        }
+        Py_UCS4 u = PyUnicode_ReadChar(ch_obj, 0);
+        ch = (uint32_t)u;
+    } else {
+        PyErr_SetString(PyExc_TypeError, "ch must be int or 1-char str");
+        return nullptr;
+    }
+
+    // parse start/end similar to find
+    Py_ssize_t start;
+    if (start_obj == Py_None) {
+        start = 0;
+    } else {
+        if (!PyLong_Check(start_obj)) { PyErr_SetString(PyExc_TypeError, "start/end must be int or None"); return nullptr; }
+        start = PyLong_AsSsize_t(start_obj);
+        if (start == -1 && PyErr_Occurred()) return nullptr;
+        if (start < 0) start += buf_len;
+    }
+
+    Py_ssize_t end;
+    if (end_obj == Py_None) {
+        end = buf_len;
+    } else {
+        if (!PyLong_Check(end_obj)) { PyErr_SetString(PyExc_TypeError, "start/end must be int or None"); return nullptr; }
+        end = PyLong_AsSsize_t(end_obj);
+        if (end == -1 && PyErr_Occurred()) return nullptr;
+        if (end < 0) end += buf_len;
+    }
+
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (start > buf_len) return PyLong_FromLong(-1);
+    if (end > buf_len) end = buf_len;
+    if (start >= end) return PyLong_FromLong(-1);
+
+    Py_ssize_t res = buf->findc(start, end, ch);
+    return PyLong_FromSsize_t(res);
+}
+
+
+/**
+ * rfindc(self, ch, start=None, end=None)
+ */
+static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"ch", (char*)"start", (char*)"end", nullptr};
+    PyObject *ch_obj = nullptr;
+    PyObject *start_obj = Py_None;
+    PyObject *end_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OO:rfindc", kwlist,
+                                     &ch_obj, &start_obj, &end_obj)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t buf_len = (Py_ssize_t)buf->length();
+
+    uint32_t ch;
+    if (PyLong_Check(ch_obj)) {
+        long tmp = PyLong_AsLong(ch_obj);
+        if (tmp < 0) { PyErr_SetString(PyExc_ValueError, "ch must be a non-negative code point"); return nullptr; }
+        ch = (uint32_t)tmp;
+    } else if (PyUnicode_Check(ch_obj)) {
+        if (PyUnicode_GetLength(ch_obj) != 1) { PyErr_SetString(PyExc_ValueError, "ch must be a single character string"); return nullptr; }
+        Py_UCS4 u = PyUnicode_ReadChar(ch_obj, 0);
+        ch = (uint32_t)u;
+    } else { PyErr_SetString(PyExc_TypeError, "ch must be int or 1-char str"); return nullptr; }
+
+    // parse start/end
+    Py_ssize_t start;
+    if (start_obj == Py_None) {
+        start = 0;
+    } else {
+        if (!PyLong_Check(start_obj)) { PyErr_SetString(PyExc_TypeError, "start/end must be int or None"); return nullptr; }
+        start = PyLong_AsSsize_t(start_obj);
+        if (start == -1 && PyErr_Occurred()) return nullptr;
+        if (start < 0) start += buf_len;
+    }
+
+    Py_ssize_t end;
+    if (end_obj == Py_None) {
+        end = buf_len;
+    } else {
+        if (!PyLong_Check(end_obj)) { PyErr_SetString(PyExc_TypeError, "start/end must be int or None"); return nullptr; }
+        end = PyLong_AsSsize_t(end_obj);
+        if (end == -1 && PyErr_Occurred()) return nullptr;
+        if (end < 0) end += buf_len;
+    }
+
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (start > buf_len) return PyLong_FromLong(-1);
+    if (end > buf_len) end = buf_len;
+    if (start >= end) return PyLong_FromLong(-1);
+
+    Py_ssize_t res = buf->rfindc(start, end, ch);
+    return PyLong_FromSsize_t(res);
 }

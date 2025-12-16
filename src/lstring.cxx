@@ -25,6 +25,17 @@ static PyObject* LStr_str(LStrObject *self);
 static Py_ssize_t LStr_sq_length(PyObject *self);
 static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key);
 static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op);
+static PyObject* LStr_iter(PyObject *self);
+static void LStrIter_dealloc(PyObject *it_obj);
+static PyObject* LStrIter_iternext(PyObject *it_obj);
+
+/* Iterator object for _lstr */
+struct LStrIterObject {
+    PyObject_HEAD
+    LStrObject *source; /* borrowed but owned reference */
+    Py_ssize_t index;
+    Py_ssize_t length;
+};
 
 /**
  * @brief Type slots for `_lstr` used to create the heap type from spec.
@@ -38,6 +49,7 @@ static PyType_Slot LStr_slots[] = {
     {Py_tp_hash,      (void*)LStr_hash},
     {Py_tp_repr,      (void*)LStr_repr},
     {Py_tp_str,       (void*)LStr_str},
+    {Py_tp_iter,      (void*)LStr_iter},
     {Py_tp_methods,   (void*)LStr_methods},
     {Py_tp_doc,       (void*)"_lstr is a lazy string class that defers direct access to its internal buffer"},
     {Py_nb_add,       (void*)LStr_add},
@@ -368,6 +380,87 @@ static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
         case Py_GE: if (cmp >= 0) Py_RETURN_TRUE; else Py_RETURN_FALSE;
         default: Py_RETURN_NOTIMPLEMENTED;
     }
+}
+
+/**
+ * Iterator implementation for `_lstr`.
+ *
+ * The iterator holds an owned reference to the source `_lstr` object so
+ * that the underlying buffer remains valid during iteration. The iterator
+ * type is created on-demand via PyType_FromSpec and cached as an attribute
+ * on the `_lstr` heap type object (no global/static variables are used).
+ */
+
+static void LStrIter_dealloc(PyObject *it_obj) {
+    LStrIterObject *it = (LStrIterObject*)it_obj;
+    if (it->source) {
+        Py_DECREF((PyObject*)it->source);
+        it->source = nullptr;
+    }
+    PyTypeObject *tp = Py_TYPE(it_obj);
+    tp->tp_free(it_obj);
+}
+
+static PyObject* LStrIter_iternext(PyObject *it_obj) {
+    LStrIterObject *it = (LStrIterObject*)it_obj;
+    if (!it->source) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid lstr iterator");
+        return nullptr;
+    }
+    if (it->index >= it->length) {
+        PyErr_SetNone(PyExc_StopIteration);
+        return nullptr;
+    }
+    uint32_t ch = it->source->buffer->value(it->index);
+    it->index += 1;
+    return PyUnicode_FromOrdinal(ch);
+}
+
+PyType_Slot LStrIter_slots[] = {
+    {Py_tp_dealloc, (void*)LStrIter_dealloc},
+    {Py_tp_iternext, (void*)LStrIter_iternext},
+    {Py_tp_iter, (void*)PyObject_SelfIter},
+    {Py_tp_doc, (void*)"Iterator over _lstr yielding single-character str objects."},
+    {0, nullptr}
+};
+
+PyType_Spec LStrIter_spec = {
+    "lstring._lstr_iterator",
+    sizeof(LStrIterObject),
+    0,
+    Py_TPFLAGS_DEFAULT,
+    LStrIter_slots
+};
+
+static PyObject* LStr_iter(PyObject *self) {
+    PyTypeObject *lstr_type = Py_TYPE(self);
+
+    // Try to get cached iterator type from the lstr type object
+    PyObject *it_type = PyObject_GetAttrString((PyObject*)lstr_type, "_iterator_type");
+    if (!it_type) {
+        PyErr_Clear();
+
+        it_type = PyType_FromSpec(&LStrIter_spec);
+        if (!it_type) return nullptr;
+
+        // Cache iterator type on the lstr heap type object for reuse.
+        if (PyObject_SetAttrString((PyObject*)lstr_type, "_iterator_type", it_type) < 0) {
+            Py_DECREF(it_type);
+            return nullptr;
+        }
+    }
+
+    // Create a new iterator instance
+    PyObject *it_obj = PyObject_CallObject(it_type, nullptr);
+    if (!it_obj) return nullptr;
+
+    LStrIterObject *it = (LStrIterObject*)it_obj;
+    Py_INCREF(self);
+    it->source = (LStrObject*)self;
+    it->index = 0;
+    it->length = it->source->buffer->length();
+
+    return it_obj;
 }
 
 /**

@@ -135,6 +135,42 @@ public:
         PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd]", inner.get(), start_index, end_index);
         return result;
     }
+    
+    Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        Py_ssize_t len = length();
+        if (len <= 0) return -1;
+        if (start < 0) start = 0;
+        if (end < 0) end = 0;
+        if (start > len) return -1;
+        if (end > len) end = len;
+        if (start >= end) return -1;
+
+        Buffer *buf = get_buffer(lstr_obj.get());
+        // Map slice-relative range [start, end) to base buffer range [bstart, bend)
+        Py_ssize_t bstart = start_index + start;
+        Py_ssize_t bend = start_index + end;
+        Py_ssize_t pos = buf->findc(bstart, bend, ch);
+        if (pos == -1) return -1;
+        // convert base index back to slice-relative index
+        return pos - start_index;
+    }
+
+    Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        Py_ssize_t len = length();
+        if (len <= 0) return -1;
+        if (start < 0) start = 0;
+        if (end < 0) end = 0;
+        if (start > len) return -1;
+        if (end > len) end = len;
+        if (start >= end) return -1;
+
+        Buffer *buf = get_buffer(lstr_obj.get());
+        Py_ssize_t bstart = start_index + start;
+        Py_ssize_t bend = start_index + end;
+        Py_ssize_t pos = buf->rfindc(bstart, bend, ch);
+        if (pos == -1) return -1;
+        return pos - start_index;
+    }
 };
 /**
  * @brief SliceBuffer — slice with arbitrary (possibly negative) step.
@@ -234,6 +270,43 @@ public:
         if (!inner) return nullptr;
         PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd:%ld]", inner.get(), start_index, end_index, step);
         return result;
+    }
+
+    Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        Py_ssize_t len = length();
+        if (len <= 0) return -1;
+        if (start < 0) start = 0;
+        if (end < 0) end = 0;
+        if (start > len) return -1;
+        if (end > len) end = len;
+        if (start >= end) return -1;
+
+        Buffer *buf = get_buffer(lstr_obj.get());
+        for (Py_ssize_t i = start; i < end; ++i) {
+            Py_ssize_t base_idx = start_index + i * step;
+            uint32_t v = buf->value(base_idx);
+            if (v == ch) return i;
+        }
+        return -1;
+    }
+
+    Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        Py_ssize_t len = length();
+        if (len <= 0) return -1;
+        if (start < 0) start = 0;
+        if (end < 0) end = 0;
+        if (start > len) return -1;
+        if (end > len) end = len;
+        if (start >= end) return -1;
+
+        Buffer *buf = get_buffer(lstr_obj.get());
+        for (Py_ssize_t i = end - 1; i >= start; --i) {
+            Py_ssize_t base_idx = start_index + i * step;
+            uint32_t v = buf->value(base_idx);
+            if (v == ch) return i;
+            if (i == 0) break;
+        }
+        return -1;
     }
 };
 

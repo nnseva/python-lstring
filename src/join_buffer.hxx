@@ -164,6 +164,77 @@ public:
         PyObject *result = PyUnicode_FromFormat("(%U + %U)", lrepr.get(), rrepr.get());
         return result;
     }
+
+    /*
+     * Implement single-character search for concatenated view.
+     * Both start and end are interpreted as given; clamp to valid range
+     * for this buffer implementation.
+     */
+    Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
+        Py_ssize_t llen = lbuf->length();
+        Py_ssize_t rlen = rbuf->length();
+        Py_ssize_t total = llen + rlen;
+
+        if (total <= 0) return -1;
+        if (start < 0) start = 0;
+        if (end < 0) end = 0;
+        if (start > total) return -1;
+        if (end > total) end = total;
+        if (start >= end) return -1;
+
+        // Search left portion
+        if (start < llen) {
+            Py_ssize_t left_start = start;
+            Py_ssize_t left_end = (end < llen) ? end : llen;
+            Py_ssize_t pos = lbuf->findc(left_start, left_end, ch);
+            if (pos != -1) return pos;
+        }
+
+        // Search right portion
+        if (end > llen) {
+            Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
+            Py_ssize_t right_end = end - llen;
+            Py_ssize_t pos = rbuf->findc(right_start, right_end, ch);
+            if (pos != -1) return pos + llen;
+        }
+
+        return -1;
+    }
+
+    Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
+        Buffer *lbuf = get_buffer(left_obj.get());
+        Buffer *rbuf = get_buffer(right_obj.get());
+        Py_ssize_t llen = lbuf->length();
+        Py_ssize_t rlen = rbuf->length();
+        Py_ssize_t total = llen + rlen;
+
+        if (total <= 0) return -1;
+        if (start < 0) start = 0;
+        if (end < 0) end = 0;
+        if (start > total) return -1;
+        if (end > total) end = total;
+        if (start >= end) return -1;
+
+        // Search right portion first
+        if (end > llen) {
+            Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
+            Py_ssize_t right_end = end - llen;
+            Py_ssize_t pos = rbuf->rfindc(right_start, right_end, ch);
+            if (pos != -1) return pos + llen;
+        }
+
+        // Then search left portion
+        if (start < llen) {
+            Py_ssize_t left_start = start;
+            Py_ssize_t left_end = (end < llen) ? end : llen;
+            Py_ssize_t pos = lbuf->rfindc(left_start, left_end, ch);
+            if (pos != -1) return pos;
+        }
+
+        return -1;
+    }
 };
 
 #endif // JOIN_BUFFER_HXX

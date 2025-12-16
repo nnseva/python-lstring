@@ -120,6 +120,29 @@ public:
     }
 
     /**
+     * @brief Find a single code point in the buffer searching forward.
+     *
+     * Searches for the code point `ch` between indices [start, end) and
+     * returns the index of the first occurrence or -1 when not found. Both
+     * start and end are interpreted as given (negative values are not
+     * adjusted by this helper).
+     *
+     * Implementations must perform bounds checking and return -1 if no
+     * occurrence is present in the requested slice.
+     */
+    virtual Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const = 0;
+
+    /**
+     * @brief Find a single code point in the buffer searching backward.
+     *
+     * Searches for the code point `ch` between indices [start, end) from
+     * the right and returns the index of the last occurrence or -1 when
+     * not found. Both start and end are interpreted as given (negative
+     * values are not adjusted by this helper).
+     */
+    virtual Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const = 0;
+
+    /**
      * @brief Compute or return a cached hash value for this buffer.
      * @return Py_hash_t hash value.
      */
