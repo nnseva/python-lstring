@@ -98,7 +98,7 @@ public:
     PyObject* repr() const override {
         cppy::ptr repr_obj( py_str.repr() );
         if (!repr_obj) return nullptr;
-        PyObject *result = PyUnicode_FromFormat("l%U", repr_obj.get());
+        PyObject *result = PyUnicode_FromFormat("L%U", repr_obj.get());
         return result;
     }
 

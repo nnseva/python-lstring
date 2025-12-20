@@ -1,6 +1,6 @@
 /**
  * @file lstring.cxx
- * @brief Python C++ extension defining lstring._lstr - a lazy string class.
+ * @brief Python C++ extension defining lstring.L - a lazy string class.
  */
 
 #include <Python.h>
@@ -14,7 +14,7 @@
 #include "mul_buffer.hxx"
 #include "slice_buffer.hxx"
 
-/* Forward declarations of lstr type methods. */
+/* Forward declarations of L type methods. */
 static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static void LStr_dealloc(LStrObject *self);
 static Py_hash_t LStr_hash(LStrObject *self);
@@ -29,7 +29,7 @@ static PyObject* LStr_iter(PyObject *self);
 static void LStrIter_dealloc(PyObject *it_obj);
 static PyObject* LStrIter_iternext(PyObject *it_obj);
 
-/* Iterator object for _lstr */
+/* Iterator object for L */
 struct LStrIterObject {
     PyObject_HEAD
     LStrObject *source; /* borrowed but owned reference */
@@ -38,7 +38,7 @@ struct LStrIterObject {
 };
 
 /**
- * @brief Type slots for `_lstr` used to create the heap type from spec.
+ * @brief Type slots for `L` used to create the heap type from spec.
  *
  * These slots wire up tp_new, tp_dealloc, numeric/mapping/sequence
  * protocol handlers and other type-level metadata.
@@ -51,7 +51,7 @@ static PyType_Slot LStr_slots[] = {
     {Py_tp_str,       (void*)LStr_str},
     {Py_tp_iter,      (void*)LStr_iter},
     {Py_tp_methods,   (void*)LStr_methods},
-    {Py_tp_doc,       (void*)"_lstr is a lazy string class that defers direct access to its internal buffer"},
+    {Py_tp_doc,       (void*)"L is a lazy string class that defers direct access to its internal buffer"},
     {Py_nb_add,       (void*)LStr_add},
     {Py_nb_multiply,  (void*)LStr_mul},
     {Py_tp_richcompare, (void*)LStr_richcompare},
@@ -62,12 +62,12 @@ static PyType_Slot LStr_slots[] = {
 };
 
 /**
- * @brief PyType_Spec for the `_lstr` heap type.
+ * @brief PyType_Spec for the `L` heap type.
  *
- * Create a concrete type object for `_lstr` from this spec.
+ * Create a concrete type object for `L` from this spec.
  */
 PyType_Spec LStr_spec = {
-    "lstring._lstr",
+    "lstring.L",
     sizeof(LStrObject),
     0,
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -75,9 +75,9 @@ PyType_Spec LStr_spec = {
 };
 
 /**
- * @brief __new__ implementation for `_lstr`.
+ * @brief __new__ implementation for `L`.
  *
- * Expects a single Python str argument and creates a new `_lstr` instance
+ * Expects a single Python str argument and creates a new `L` instance
  * wrapping a StrBuffer that references the string.
  */
 static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
@@ -93,13 +93,13 @@ static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     }
 
     // Delegate allocation+initialization to helper that constructs an
-    // _lstr instance from a Python str.
+    // L instance from a Python str.
     PyObject *obj = make_lstr_from_pystr(type, py_str);
     return obj;
 }
 
 /**
- * @brief Deallocator for `_lstr` instances.
+ * @brief Deallocator for `L` instances.
  *
  * Frees the internal Buffer and releases the object memory.
  */
@@ -112,20 +112,20 @@ static void LStr_dealloc(LStrObject *self) {
 }
 
 /**
- * @brief Hash function for `_lstr`.
+ * @brief Hash function for `L`.
  *
  * Delegates to the underlying Buffer's cached hash implementation.
  */
 static Py_hash_t LStr_hash(LStrObject *self) {
     if (!self->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
+        PyErr_SetString(PyExc_RuntimeError, "L has no buffer");
         return -1;
     }
     return self->buffer->hash();
 }
 
 /**
- * @brief Sequence protocol length for `_lstr`.
+ * @brief Sequence protocol length for `L`.
  *
  * Returns the number of code points in the underlying buffer.
  */
@@ -134,13 +134,13 @@ static Py_ssize_t LStr_sq_length(PyObject *self) {
 }
 
 /**
- * @brief repr(self) implementation for `_lstr`.
+ * @brief repr(self) implementation for `L`.
  *
- * Produces a Python string representing the lstr; delegates to Buffer::repr.
+ * Produces a Python string representing the L; delegates to Buffer::repr.
  */
 static PyObject* LStr_repr(LStrObject *self) {
     if (!self->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
+        PyErr_SetString(PyExc_RuntimeError, "L has no buffer");
         return nullptr;
     }
 
@@ -151,7 +151,7 @@ static PyObject* LStr_repr(LStrObject *self) {
  * @brief Support for indexing and slicing (`obj[index]` / `obj[start:stop:step]`).
  *
  * Returns a newly allocated `str` for single-index lookups and a new
- * `_lstr` instance for slices.
+ * `L` instance for slices.
  */
 static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     LStrObject *self = (LStrObject*)self_obj;
@@ -164,7 +164,7 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
 
         if (index < 0) index += length;
         if (index < 0 || index >= length) {
-            PyErr_SetString(PyExc_IndexError, "lstr index out of range");
+            PyErr_SetString(PyExc_IndexError, "L index out of range");
             return nullptr;
         }
         uint32_t ch = self->buffer->value(index);
@@ -172,7 +172,7 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     }
 
     if (!PySlice_Check(key)) {
-        PyErr_SetString(PyExc_TypeError, "lstr index type not supported");
+        PyErr_SetString(PyExc_TypeError, "L index type not supported");
         return nullptr;
     }
     // Slice
@@ -213,14 +213,14 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
 }
 
 /**
- * @brief Numeric add handler for `_lstr`.
+ * @brief Numeric add handler for `L`.
  *
- * Supports `_lstr + _lstr` and mixed `_lstr + str` / `str + _lstr` where
- * a Python `str` operand is wrapped into a temporary `_lstr` backed by a
+ * Supports `L + L` and mixed `L + str` / `str + L` where
+ * a Python `str` operand is wrapped into a temporary `L` backed by a
  * StrBuffer.
  */
 static PyObject* LStr_add(PyObject *left, PyObject *right) {
-    // Allow mixing `_lstr` and Python `str`.
+    // Allow mixing `L` and Python `str`.
     bool left_is_str = PyUnicode_Check(left);
     bool right_is_str = PyUnicode_Check(right);    
 
@@ -230,13 +230,13 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
         return nullptr;
     }
 
-    // Determine lstr type and validate operands. If one operand is a Python
-    // str, the other must be an lstr. Otherwise both operands must be the
-    // same lstr type. For unsupported combos, return a clear error that
+    // Determine L type and validate operands. If one operand is a Python
+    // str, the other must be an L. Otherwise both operands must be the
+    // same L type. For unsupported combos, return a clear error that
     // includes the Python-level type names.
     PyTypeObject *type = nullptr;
     if (!left_is_str && !right_is_str && Py_TYPE(left) != Py_TYPE(right)) {
-        // neither is Python str: require both be same lstr type
+        // neither is Python str: require both be same L type
         cppy::ptr lt(PyObject_Type(left), true);
         cppy::ptr rt(PyObject_Type(right), true);
         PyErr_Format(PyExc_TypeError, "Operation %R + %R not supported", lt.get(), rt.get());
@@ -264,7 +264,7 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
         right_owner = cppy::ptr(right, true);
     }
 
-    // Allocate result object of the lstr type
+    // Allocate result object of the L type
     LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
     if (!result) return nullptr;
     cppy::ptr result_owner((PyObject*)result);
@@ -286,9 +286,9 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
 }
 
 /**
- * @brief Numeric multiply (repeat) handler for `_lstr`.
+ * @brief Numeric multiply (repeat) handler for `L`.
  *
- * Supports `_lstr * int` and `int * _lstr`.
+ * Supports `L * int` and `int * L`.
  */
 static PyObject* LStr_mul(PyObject *left, PyObject *right) {
     PyObject *lstr_obj = nullptr;
@@ -303,7 +303,7 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
         count_obj = left;
     } else {
         PyErr_SetString(PyExc_TypeError,
-                        "lstr multiplication requires an integer operand");
+                        "L multiplication requires an integer operand");
         return nullptr;
     }
 
@@ -314,7 +314,7 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
     }
     if (repeat_count < 0) {
         PyErr_SetString(PyExc_RuntimeError,
-                        "lstr repeat count must be non-negative");
+                        "L repeat count must be non-negative");
         return nullptr;
     }
 
@@ -330,7 +330,7 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
     } catch (...) {
-        PyErr_SetString(PyExc_RuntimeError, "lstr multiplication failed");
+        PyErr_SetString(PyExc_RuntimeError, "L multiplication failed");
         return nullptr;
     }
 
@@ -341,7 +341,7 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
 }
 
 /**
- * @brief Rich comparison implementation for `_lstr` instances.
+ * @brief Rich comparison implementation for `L` instances.
  *
  * Implements equality/ordering by delegating to the underlying Buffer
  * comparison. For EQ/NE a cheap hash comparison is attempted first.
@@ -357,7 +357,7 @@ static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
     Buffer *bb = lb->buffer;
 
     if (!ba || !bb) {
-        PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
+        PyErr_SetString(PyExc_RuntimeError, "L has no buffer");
         return nullptr;
     }
 
@@ -383,12 +383,12 @@ static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
 }
 
 /**
- * Iterator implementation for `_lstr`.
+ * Iterator implementation for `L`.
  *
- * The iterator holds an owned reference to the source `_lstr` object so
+ * The iterator holds an owned reference to the source `L` object so
  * that the underlying buffer remains valid during iteration. The iterator
  * type is created on-demand via PyType_FromSpec and cached as an attribute
- * on the `_lstr` heap type object (no global/static variables are used).
+ * on the `L` heap type object (no global/static variables are used).
  */
 
 static void LStrIter_dealloc(PyObject *it_obj) {
@@ -404,7 +404,7 @@ static void LStrIter_dealloc(PyObject *it_obj) {
 static PyObject* LStrIter_iternext(PyObject *it_obj) {
     LStrIterObject *it = (LStrIterObject*)it_obj;
     if (!it->source) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr iterator");
+        PyErr_SetString(PyExc_RuntimeError, "invalid L iterator");
         return nullptr;
     }
     if (it->index >= it->length) {
@@ -420,7 +420,7 @@ PyType_Slot LStrIter_slots[] = {
     {Py_tp_dealloc, (void*)LStrIter_dealloc},
     {Py_tp_iternext, (void*)LStrIter_iternext},
     {Py_tp_iter, (void*)PyObject_SelfIter},
-    {Py_tp_doc, (void*)"Iterator over _lstr yielding single-character str objects."},
+    {Py_tp_doc, (void*)"Iterator over L yielding single-character str objects."},
     {0, nullptr}
 };
 
@@ -435,7 +435,7 @@ PyType_Spec LStrIter_spec = {
 static PyObject* LStr_iter(PyObject *self) {
     PyTypeObject *lstr_type = Py_TYPE(self);
 
-    // Try to get cached iterator type from the lstr type object
+    // Try to get cached iterator type from the L type object
     PyObject *it_type = PyObject_GetAttrString((PyObject*)lstr_type, "_iterator_type");
     if (!it_type) {
         PyErr_Clear();
@@ -443,7 +443,7 @@ static PyObject* LStr_iter(PyObject *self) {
         it_type = PyType_FromSpec(&LStrIter_spec);
         if (!it_type) return nullptr;
 
-        // Cache iterator type on the lstr heap type object for reuse.
+        // Cache iterator type on the L heap type object for reuse.
         if (PyObject_SetAttrString((PyObject*)lstr_type, "_iterator_type", it_type) < 0) {
             Py_DECREF(it_type);
             return nullptr;
@@ -464,7 +464,7 @@ static PyObject* LStr_iter(PyObject *self) {
 }
 
 /**
- * @brief Materialize the `_lstr` as a concrete Python `str`.
+ * @brief Materialize the `L` as a concrete Python `str`.
  *
  * If the underlying Buffer already wraps a Python string, that object is
  * returned with an owned reference; otherwise a new Python string is
@@ -473,7 +473,7 @@ static PyObject* LStr_iter(PyObject *self) {
 static PyObject* LStr_str(LStrObject *self) {
     Buffer *buf = self->buffer;
     if (!buf) {
-        PyErr_SetString(PyExc_RuntimeError, "lstr has no buffer");
+        PyErr_SetString(PyExc_RuntimeError, "L has no buffer");
         return nullptr;
     }
 

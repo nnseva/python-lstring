@@ -32,10 +32,10 @@ class TestLStrUnicodeKinds(unittest.TestCase):
         self.s3 = "\U0001F600\U0001F601"
 
     def test_hash_preserved_per_kind(self):
-        """Collapsing an `_lstr` backed by different unicode kinds preserves hash."""
+        """Collapsing an `L` backed by different unicode kinds preserves hash."""
         for text in (self.s1, self.s2, self.s3):
             with self.subTest(text=text):
-                s = lstring._lstr(text)
+                s = lstring.L(text)
                 before_hash = hash(s)
                 self.assertEqual(str(s), text)
                 s.collapse()
@@ -43,9 +43,9 @@ class TestLStrUnicodeKinds(unittest.TestCase):
 
     def test_combination_mixed_kinds(self):
         """Concatenating buffers with mixed unicode kinds yields correct string and preserves hash on collapse."""
-        a = lstring._lstr(self.s1)
-        b = lstring._lstr(self.s2)
-        c = lstring._lstr(self.s3)
+        a = lstring.L(self.s1)
+        b = lstring.L(self.s2)
+        c = lstring.L(self.s3)
 
         combo = a + b + c
         expected = self.s1 + self.s2 + self.s3
@@ -57,8 +57,8 @@ class TestLStrUnicodeKinds(unittest.TestCase):
 
     def test_nested_operations_slice_from_join_mul(self):
         """Slice a result created by joining then repeating and verify correctness and hash preservation."""
-        a = lstring._lstr(self.s1)
-        b = lstring._lstr(self.s3)
+        a = lstring.L(self.s1)
+        b = lstring.L(self.s3)
 
         j = a + b
         m = j * 2
@@ -76,9 +76,9 @@ class TestLStrUnicodeKinds(unittest.TestCase):
 
     def test_deeply_nested_mix(self):
         """Build deep nested expression mixing kinds and assert final slice correctness and hash preservation."""
-        a = lstring._lstr(self.s2)
-        b = lstring._lstr(self.s1)
-        c = lstring._lstr(self.s3)
+        a = lstring.L(self.s2)
+        b = lstring.L(self.s1)
+        c = lstring.L(self.s3)
 
         expr = (a * 3) + (b + c)
         sliced = expr[2:10]
@@ -94,7 +94,7 @@ class TestLStrUnicodeKinds(unittest.TestCase):
     def test_slice_from_2byte_source_yields_1byte_when_ascii_only(self):
         """Slicing a 2-byte+ascii source that yields only ASCII should result in a 1-byte-backed string after collapse."""
         base_text = self.s2 + self.s1
-        base = lstring._lstr(base_text)
+        base = lstring.L(base_text)
         start = len(self.s2)
         end = start + len(self.s1)
         sliced = base[start:end]
@@ -108,7 +108,7 @@ class TestLStrUnicodeKinds(unittest.TestCase):
     def test_slice_from_4byte_source_various_kinds(self):
         """Verify slices landing in 1-byte, 2-byte and 4-byte regions behave correctly and preserve hashes after collapse."""
         base_text = self.s3 + self.s2 + self.s1
-        base = lstring._lstr(base_text)
+        base = lstring.L(base_text)
 
         start_ascii = len(self.s3) + len(self.s2)
         end_ascii = start_ascii + len(self.s1)
@@ -136,7 +136,7 @@ class TestLStrUnicodeKinds(unittest.TestCase):
 
     def test_empty_slices_and_zero_length(self):
         """Empty and out-of-range slices yield empty 1-byte strings and preserve hashes."""
-        base = lstring._lstr(self.s3 + self.s2 + self.s1)
+        base = lstring.L(self.s3 + self.s2 + self.s1)
         s0 = base[1:1]
         self.assertEqual(str(s0), "")
         h0 = hash(s0)
@@ -152,7 +152,7 @@ class TestLStrUnicodeKinds(unittest.TestCase):
     def test_slices_with_non_unit_steps(self):
         """Verify non-unit and negative steps behave as expected and preserve hashes after collapse."""
         base_text = self.s3 + self.s2 + self.s1
-        base = lstring._lstr(base_text)
+        base = lstring.L(base_text)
 
         step_pos = base[len(self.s3) + len(self.s2):len(base_text):2]
         self.assertEqual(str(step_pos), base_text[len(self.s3) + len(self.s2):len(base_text):2])

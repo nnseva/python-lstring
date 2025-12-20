@@ -1,5 +1,5 @@
 """
-Benchmark: compare str.find and _lstr.find on a very large string with a small fragment
+Benchmark: compare str.find and L.find on a very large string with a small fragment
 near the middle.
 
 Usage: run inside the project environment where the extension is installed (or `PYTHONPATH=.`):
@@ -12,7 +12,7 @@ import time
 import statistics
 import argparse
 
-from lstring import _lstr
+from lstring import L
 
 
 def build_test_strings(total_len=10_000_000, fragment="needle", filler="qwertyuiop"):
@@ -43,9 +43,9 @@ def build_test_strings(total_len=10_000_000, fragment="needle", filler="qwertyui
 
     data = left + fragment + right
 
-    # return both Python str and _lstr wrapping the same content
+    # return both Python str and L wrapping the same content
     py = data
-    lz = _lstr(py)
+    lz = L(py)
     pos = left_len
     return py, lz, py[pos:pos+frag_len]
 
@@ -55,8 +55,8 @@ def time_find(py, lz, sub, runs=5):
     lz_fast_times = []
     lz_sliced_times = []
 
-    # prepare a sliced _lstr needle and a sliced haystack
-    sliced_needle = _lstr(sub)[:]
+    # prepare a sliced L needle and a sliced haystack
+    sliced_needle = L(sub)[:]
     sliced_hay = lz[:]
 
     for _ in range(runs):
@@ -66,7 +66,7 @@ def time_find(py, lz, sub, runs=5):
         t1 = time.perf_counter()
         py_times.append(t1 - t0)
 
-        # fast-path: _lstr haystack with plain Python str needle (both str-backed buffers)
+        # fast-path: L haystack with plain Python str needle (both str-backed buffers)
         t0 = time.perf_counter()
         j = lz.find(sub)
         t1 = time.perf_counter()
@@ -80,7 +80,7 @@ def time_find(py, lz, sub, runs=5):
 
         # sanity checks
         if i != j or i != k:
-            raise RuntimeError(f"Mismatch: str.find -> {i}, _lstr.find fast -> {j}, sliced -> {k}")
+            raise RuntimeError(f"Mismatch: str.find -> {i}, L.find fast -> {j}, sliced -> {k}")
 
     return py_times, lz_fast_times, lz_sliced_times
 
@@ -112,12 +112,12 @@ def main():
 
     print("Results (seconds, median/min/max):")
     print(f"str.find:      {p_med:.6f} / {p_min:.6f} / {p_max:.6f}")
-    print(f"_lstr.find fast:{f_med:.6f} / {f_min:.6f} / {f_max:.6f}")
-    print(f"_lstr.find sliced:{s_med:.6f} / {s_min:.6f} / {s_max:.6f}")
+    print(f"L.find fast:   {f_med:.6f} / {f_min:.6f} / {f_max:.6f}")
+    print(f"L.find sliced: {s_med:.6f} / {s_min:.6f} / {s_max:.6f}")
 
     print("Per-run details (str.find):", ", ".join(f"{t:.6f}" for t in py_times))
-    print("Per-run details (_lstr.find fast):", ", ".join(f"{t:.6f}" for t in lz_fast_times))
-    print("Per-run details (_lstr.find sliced):", ", ".join(f"{t:.6f}" for t in lz_sliced_times))
+    print("Per-run details (L.find fast):", ", ".join(f"{t:.6f}" for t in lz_fast_times))
+    print("Per-run details (L.find sliced):", ", ".join(f"{t:.6f}" for t in lz_sliced_times))
 
 
 if __name__ == '__main__':

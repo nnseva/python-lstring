@@ -1,4 +1,4 @@
-"""Reference-counting tests for lstring._lstr operations.
+"""Reference-counting tests for lstring.L operations.
 
 Utilities:
  - dyn(s): create a dynamic (non-interned) string equal to `s`.
@@ -19,7 +19,7 @@ def dyn(s: str) -> str:
     return "".join(s)
 
 class TestLStrRefCounts(unittest.TestCase):
-    """Reference-counting tests covering _lstr operations.
+    """Reference-counting tests covering L operations.
 
     These tests verify that various lazy operations (construction, concat,
     repeat, slice, indexing, repr/str) do not leak or change refcounts of the
@@ -58,11 +58,11 @@ class TestLStrRefCounts(unittest.TestCase):
             for j in range(len(k)):
                 yield (k[i], k[j])
     def test_constructor_refcounts(self):
-        """Constructing and deleting an `_lstr` does not change the source refcount."""
+        """Constructing and deleting an `L` does not change the source refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 tmp = str(x)  # make sure object is used
                 del tmp
                 del x
@@ -71,14 +71,14 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after, before)
 
     def test_concat_refcounts(self):
-        """Concatenating two `_lstr` instances does not affect original strings' refcounts."""
+        """Concatenating two `L` instances does not affect original strings' refcounts."""
         for a, b in self.pairs():
             with self.subTest(left=a, right=b):
                 before_a = sys.getrefcount(a)
                 before_b = sys.getrefcount(b)
 
-                x = lstring._lstr(a)
-                y = lstring._lstr(b)
+                x = lstring.L(a)
+                y = lstring.L(b)
                 z = x + y
                 tmp = str(z)
                 del tmp
@@ -91,14 +91,14 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after_b, before_b)
 
     def test_concat_lstr_plus_str_refcounts(self):
-        """Mixing `_lstr + str` preserves refcounts of both operands."""
+        """Mixing `L + str` preserves refcounts of both operands."""
         for a in self.kinds():
             for b in self.kinds():
                 with self.subTest(left=a, right=b):
                     before_a = sys.getrefcount(a)
                     before_b = sys.getrefcount(b)
 
-                    x = lstring._lstr(a)
+                    x = lstring.L(a)
                     z = x + b
                     tmp = str(z)
                     del tmp
@@ -111,14 +111,14 @@ class TestLStrRefCounts(unittest.TestCase):
                     self.assertEqual(after_b, before_b)
 
     def test_concat_str_plus_lstr_refcounts(self):
-        """Mixing `str + _lstr` preserves refcounts of both operands."""
+        """Mixing `str + L` preserves refcounts of both operands."""
         for a in self.kinds():
             for b in self.kinds():
                 with self.subTest(left=a, right=b):
                     before_a = sys.getrefcount(a)
                     before_b = sys.getrefcount(b)
 
-                    y = lstring._lstr(b)
+                    y = lstring.L(b)
                     z = a + y
                     tmp = str(z)
                     del tmp
@@ -134,12 +134,12 @@ class TestLStrRefCounts(unittest.TestCase):
         """Concatenation with incompatible operand raises TypeError without changing refcounts."""
         for s in self.kinds():
             with self.subTest(src=s):
-                # create a dynamic non-lstr object (distinct type each loop)
+                # create a dynamic non-L object (distinct type each loop)
                 bad = type("Bad", (), {})()
-                # check left: _lstr + bad
+                # check left: L + bad
                 before_l = sys.getrefcount(s)
                 before_b = sys.getrefcount(bad)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 try:
                     with self.assertRaises(TypeError):
                         _ = x + bad
@@ -151,11 +151,11 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after_l, before_l)
                 self.assertEqual(after_b, before_b)
 
-                # check right: bad + _lstr
+                # check right: bad + L
                 bad2 = type("Bad2", (), {})()
                 before_l2 = sys.getrefcount(s)
                 before_b2 = sys.getrefcount(bad2)
-                y = lstring._lstr(s)
+                y = lstring.L(s)
                 try:
                     with self.assertRaises(TypeError):
                         _ = bad2 + y
@@ -168,11 +168,11 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after_b2, before_b2)
 
     def test_mul_refcounts(self):
-        """Repeating an `_lstr` leaves the source string's refcount unchanged."""
+        """Repeating an `L` leaves the source string's refcount unchanged."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
 
                 r1 = x * 3
                 r2 = 2 * x
@@ -189,7 +189,7 @@ class TestLStrRefCounts(unittest.TestCase):
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
 
                 subs = [
                     x[1:4],
@@ -211,7 +211,7 @@ class TestLStrRefCounts(unittest.TestCase):
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
 
                 if len(s) >= 2:
                     ch1 = x[1]
@@ -225,11 +225,11 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after, before)
 
     def test_str_conversion_refcounts(self):
-        """Converting an `_lstr` to str does not change the source string's refcount."""
+        """Converting an `L` to str does not change the source string's refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 tmp = str(x)
                 del tmp
                 del x
@@ -238,11 +238,11 @@ class TestLStrRefCounts(unittest.TestCase):
                 self.assertEqual(after, before)
 
     def test_repr_refcounts(self):
-        """Calling repr() on an `_lstr` must not affect the source string's refcount."""
+        """Calling repr() on an `L` must not affect the source string's refcount."""
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 r = repr(x)
                 del r, x
                 gc.collect()
@@ -254,7 +254,7 @@ class TestLStrRefCounts(unittest.TestCase):
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 with self.assertRaises(TypeError):
                     _ = x * 2.5
                 del x
@@ -267,7 +267,7 @@ class TestLStrRefCounts(unittest.TestCase):
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 with self.assertRaises(RuntimeError):
                     _ = x * -1
                 del x
@@ -280,7 +280,7 @@ class TestLStrRefCounts(unittest.TestCase):
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 with self.assertRaises(IndexError):
                     _ = x[len(s) + 5]
                 del x
@@ -293,7 +293,7 @@ class TestLStrRefCounts(unittest.TestCase):
         for s in self.kinds():
             with self.subTest(src=s):
                 before = sys.getrefcount(s)
-                x = lstring._lstr(s)
+                x = lstring.L(s)
                 with self.assertRaises(ValueError):
                     _ = x[::0]
                 del x
@@ -311,9 +311,9 @@ class TestLStrRefCounts(unittest.TestCase):
         before_b = sys.getrefcount(b)
         before_c = sys.getrefcount(c)
 
-        x = lstring._lstr(a)
-        y = lstring._lstr(b)
-        z = lstring._lstr(c)
+        x = lstring.L(a)
+        y = lstring.L(b)
+        z = lstring.L(c)
 
         before_x = sys.getrefcount(x)
         before_y = sys.getrefcount(y)

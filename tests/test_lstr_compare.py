@@ -1,4 +1,4 @@
-"""Comparison tests for lstring._lstr objects."""
+"""Comparison tests for lstring.L objects."""
 
 import unittest
 import lstring
@@ -7,11 +7,11 @@ import lstring
 class TestLStrComparisons(unittest.TestCase):
     """Tests for equality and ordering comparisons."""
     def setUp(self):
-        self.a = lstring._lstr("abc")
-        self.b = lstring._lstr("abc")
-        self.c = lstring._lstr("abd")
-        self.d = lstring._lstr("ab")
-        self.e = lstring._lstr("abcd")
+        self.a = lstring.L("abc")
+        self.b = lstring.L("abc")
+        self.c = lstring.L("abd")
+        self.d = lstring.L("ab")
+        self.e = lstring.L("abcd")
 
     def test_equality(self):
         """Equality and inequality for identical and different contents."""

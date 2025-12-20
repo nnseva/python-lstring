@@ -3,12 +3,12 @@ import lstring
 
 
 class TestLStrFind(unittest.TestCase):
-    """Tests for `_lstr.find` to match Python str.find semantics.
+    """Tests for `L.find` to match Python str.find semantics.
 
     Each test compares three scenarios:
     - all inputs are plain Python `str` and we call `str.find`
-    - all inputs are `_lstr` constructed directly from strings (fast-path applies)
-    - one operand (either haystack or needle) is a sliced `_lstr` (no fast-path)
+    - all inputs are `L` constructed directly from strings (fast-path applies)
+    - one operand (either haystack or needle) is a sliced `L` (no fast-path)
     """
 
     @classmethod
@@ -30,9 +30,9 @@ class TestLStrFind(unittest.TestCase):
         else:
             expected = s.find(sub, start, end)
 
-        # case B: both _lstr constructed directly from strings
-        L = lstring._lstr(s)
-        Sub = lstring._lstr(sub)
+        # case B: both L constructed directly from strings
+        L = lstring.L(s)
+        Sub = lstring.L(sub)
         if start is None and end is None:
             got_b = L.find(Sub)
         elif end is None:
@@ -40,9 +40,9 @@ class TestLStrFind(unittest.TestCase):
         else:
             got_b = L.find(Sub, start, end)
 
-        # case C: one operand is a sliced _lstr (disable fast-path)
-        Ls = lstring._lstr(s)[:]
-        Subs = lstring._lstr(sub)[:]
+        # case C: one operand is a sliced L (disable fast-path)
+        Ls = lstring.L(s)[:]
+        Subs = lstring.L(sub)[:]
         # try haystack sliced
         if start is None and end is None:
             got_c1 = Ls.find(Sub)
@@ -59,7 +59,7 @@ class TestLStrFind(unittest.TestCase):
             got_c2 = L.find(Subs, start, end)
 
         self.assertEqual(expected, got_b,
-                         msg=f"find mismatch (both _lstr) s={s!r} sub={sub!r} start={start} end={end}")
+                         msg=f"find mismatch (both L) s={s!r} sub={sub!r} start={start} end={end}")
         self.assertEqual(expected, got_c1,
                          msg=f"find mismatch (sliced haystack) s={s!r} sub={sub!r} start={start} end={end}")
         self.assertEqual(expected, got_c2,

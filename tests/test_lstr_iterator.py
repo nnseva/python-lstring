@@ -3,7 +3,7 @@ import sys
 import gc
 
 import lstring
-from lstring import _lstr
+from lstring import L
 
 
 class TestLStrIterator(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestLStrIterator(unittest.TestCase):
 
     def test_iteration_equivalence(self):
         s = 'Hello, αβγ🌟'
-        l = _lstr(s)
+        l = L(s)
 
         # direct character-wise comparison
         chars_str = list(iter(s))
@@ -29,7 +29,7 @@ class TestLStrIterator(unittest.TestCase):
 
     def test_refcount_preserved_after_iteration(self):
         s = 'refcount_test'
-        l = _lstr(s)
+        l = L(s)
 
         before = sys.getrefcount(l)
 
@@ -42,11 +42,11 @@ class TestLStrIterator(unittest.TestCase):
         gc.collect()
 
         after = sys.getrefcount(l)
-        self.assertEqual(before, after, "_lstr refcount changed after iteration")
+        self.assertEqual(before, after, "L refcount changed after iteration")
 
     def test_multiple_iterators(self):
         s = 'abcdef'
-        l = _lstr(s)
+        l = L(s)
 
         before = sys.getrefcount(l)
 

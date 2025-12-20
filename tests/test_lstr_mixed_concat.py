@@ -2,12 +2,12 @@ import unittest
 import sys
 import gc
 
-from lstring import _lstr
+from lstring import L
 
 
 class TestLStrMixedConcat(unittest.TestCase):
     def test_lstr_plus_str_result(self):
-        a = _lstr('foo')
+        a = L('foo')
         b = 'bar'
         res = a + b
         self.assertEqual(str(res), 'foobar')
@@ -16,7 +16,7 @@ class TestLStrMixedConcat(unittest.TestCase):
         self.assertEqual(b, 'bar')
 
     def test_str_plus_lstr_result(self):
-        a = _lstr('baz')
+        a = L('baz')
         b = 'qux'
         res = b + a
         self.assertEqual(str(res), 'quxbaz')
@@ -29,7 +29,7 @@ class TestLStrMixedConcat(unittest.TestCase):
         # Use sys.getrefcount which returns count+1 for the passed object, so
         # we compare deltas.
         s = 'hello_ref'
-        l = _lstr('world_ref')
+        l = L('world_ref')
 
         before_s = sys.getrefcount(s)
         before_l = sys.getrefcount(l)

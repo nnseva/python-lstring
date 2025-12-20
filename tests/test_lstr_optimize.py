@@ -17,7 +17,7 @@ class TestLStrOptimize(unittest.TestCase):
         The original threshold is saved so individual tests can modify the
         process-global optimize threshold and restore it in tearDownClass.
         """
-        cls._lstr = lstring._lstr
+        cls.L = lstring.L
         cls._orig = lstring.get_optimize_threshold()
 
     @classmethod
@@ -62,15 +62,15 @@ class TestLStrOptimize(unittest.TestCase):
     def test_threshold_zero_disables_optimization(self):
         """A threshold of 0 disables automatic collapsing; lazy buffers remain."""
         lstring.set_optimize_threshold(0)
-        a = self._lstr("foo")
-        b = self._lstr("bar")
+        a = self.L("foo")
+        b = self.L("bar")
         j = a + b
         self.assertTrue(self.assert_backed_by_join(j))
 
         m = a * 3
         self.assertTrue(self.assert_backed_by_mul(m))
 
-        s0 = self._lstr("012345")
+        s0 = self.L("012345")
         sl = s0[1:4]
         self.assertTrue(self.assert_backed_by_slice(sl))
 
@@ -78,30 +78,30 @@ class TestLStrOptimize(unittest.TestCase):
         """Positive threshold causes short results (len < threshold) to collapse."""
         lstring.set_optimize_threshold(5)
 
-        a = self._lstr("ab")
-        b = self._lstr("cd")
+        a = self.L("ab")
+        b = self.L("cd")
         j = a + b
         self.assertFalse(self.assert_backed_by_join(j))
 
         m = a * 2
         self.assertFalse(self.assert_backed_by_mul(m))
 
-        s0 = self._lstr("01234")
+        s0 = self.L("01234")
         sl = s0[1:4]
         self.assertFalse(self.assert_backed_by_slice(sl))
 
     def test_threshold_equal_to_length_does_not_collapse(self):
         """Threshold equal to the resulting length does not trigger collapse."""
         lstring.set_optimize_threshold(4)
-        a = self._lstr("ab")
-        b = self._lstr("cd")
+        a = self.L("ab")
+        b = self.L("cd")
         j = a + b
         self.assertTrue(self.assert_backed_by_join(j))
 
         m = a * 2
         self.assertTrue(self.assert_backed_by_mul(m))
 
-        s0 = self._lstr("0123")
+        s0 = self.L("0123")
         sl = s0[0:4]
         self.assertTrue(self.assert_backed_by_slice(sl))
 
@@ -113,8 +113,8 @@ class TestLStrOptimize(unittest.TestCase):
     def test_negative_threshold_disables_optimization(self):
         """Negative thresholds disable optimization (treat as disabled)."""
         lstring.set_optimize_threshold(-1)
-        a = self._lstr("ab")
-        b = self._lstr("cd")
+        a = self.L("ab")
+        b = self.L("cd")
         j = a + b
         self.assertTrue(self.assert_backed_by_join(j))
 

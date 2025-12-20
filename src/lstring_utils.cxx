@@ -81,7 +81,7 @@ void lstr_optimize(LStrObject *self) {
 
 
 /**
- * @brief Create a new _lstr instance (heap type `type`) that wraps the
+ * @brief Create a new L instance (heap type `type`) that wraps the
  *        provided Python string `py_str`.
  *
  * The function allocates the object via tp_alloc, builds a StrBuffer for

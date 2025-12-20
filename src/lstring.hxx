@@ -1,6 +1,6 @@
 /**
  * @file lstring.hxx
- * @brief Declarations for the lstr object and forward declarations.
+ * @brief Declarations for the L object and forward declarations.
  */
 
 #ifndef LSTRING_HXX
@@ -15,10 +15,10 @@ class StrBuffer;
 
 /**
  * @struct LStrObject
- * @brief C struct backing the Python `lstr` type.
+ * @brief C struct backing the Python `L` type.
  *
  * Instances of this struct are the low-level CPython object used to
- * implement the `_lstr` type. The `buffer` member points to a Buffer
+ * implement the `L` type. The `buffer` member points to a Buffer
  * implementation that lazily represents the string contents.
  */
 struct LStrObject {

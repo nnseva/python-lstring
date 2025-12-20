@@ -3,7 +3,7 @@ import lstring
 
 
 def call_rfind_lstr(lobj, sub, start=None, end=None):
-    # Build args for _lstr.rfind to match signature: rfind(sub, start=None, end=None)
+    # Build args for L.rfind to match signature: rfind(sub, start=None, end=None)
     if start is None and end is None:
         return lobj.rfind(sub)
     if end is None:
@@ -30,21 +30,21 @@ class TestLStrRFind(unittest.TestCase):
         else:
             expected = s.rfind(sub, start, end)
 
-        # both direct _lstr
-        L = lstring._lstr(s)
-        Sub = lstring._lstr(sub)
-        got_b = call_rfind_lstr(L, Sub, start, end)
+        # both direct L
+        S = lstring.L(s)
+        Sub = lstring.L(sub)
+        got_b = call_rfind_lstr(S, Sub, start, end)
 
         # sliced haystack
-        Ls = lstring._lstr(s)[:]
+        Ls = lstring.L(s)[:]
         got_c1 = call_rfind_lstr(Ls, Sub, start, end)
 
         # sliced needle
-        Subs = lstring._lstr(sub)[:]
-        got_c2 = call_rfind_lstr(L, Subs, start, end)
+        Subs = lstring.L(sub)[:]
+        got_c2 = call_rfind_lstr(S, Subs, start, end)
 
         self.assertEqual(expected, got_b,
-                         msg=f"rfind mismatch (both _lstr) s={s!r} sub={sub!r} start={start} end={end}")
+                         msg=f"rfind mismatch (both L) s={s!r} sub={sub!r} start={start} end={end}")
         self.assertEqual(expected, got_c1,
                          msg=f"rfind mismatch (sliced haystack) s={s!r} sub={sub!r} start={start} end={end}")
         self.assertEqual(expected, got_c2,

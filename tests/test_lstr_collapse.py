@@ -27,7 +27,7 @@ class TestLStrCollapse(unittest.TestCase):
         The method should return None, leave the string value unchanged,
         and preserve the object's hash and repr.
         """
-        s = lstring._lstr("hello")
+        s = lstring.L("hello")
         before_hash = hash(s)
         before_repr = repr(s)
         self.assertIsNone(s.collapse())
@@ -42,10 +42,10 @@ class TestLStrCollapse(unittest.TestCase):
         """Collapsing a JoinBuffer should produce a concrete str equal to the concatenation.
 
         The repr before collapse should show the join expression; after collapse
-        repr should be the canonical str repr prefixed with 'l'. Hash must be preserved.
+        repr should be the canonical str repr prefixed with 'L'. Hash must be preserved.
         """
-        a = lstring._lstr("foo")
-        b = lstring._lstr("bar")
+        a = lstring.L("foo")
+        b = lstring.L("bar")
         s = a + b
         self.assertEqual(str(s), "foobar")
         before_hash = hash(s)
@@ -54,7 +54,7 @@ class TestLStrCollapse(unittest.TestCase):
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "foobar")
         self.assertEqual(before_hash, hash(s))
-        self.assertEqual(repr(s), "l" + repr("foobar"))
+        self.assertEqual(repr(s), "L" + repr("foobar"))
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "foobar")
 
@@ -63,7 +63,7 @@ class TestLStrCollapse(unittest.TestCase):
 
         Verifies value, preserved hash, and final repr.
         """
-        s0 = lstring._lstr("012345")
+        s0 = lstring.L("012345")
         s = s0[1:4]
         self.assertEqual(str(s), "123")
         before_hash = hash(s)
@@ -72,11 +72,11 @@ class TestLStrCollapse(unittest.TestCase):
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "123")
         self.assertEqual(before_hash, hash(s))
-        self.assertEqual(repr(s), "l" + repr("123"))
+        self.assertEqual(repr(s), "L" + repr("123"))
 
     def test_collapse_slicebuffer_step(self):
         """Strided slice collapses into the expected str of selected characters."""
-        s0 = lstring._lstr("0123456789")
+        s0 = lstring.L("0123456789")
         s = s0[::2]
         self.assertEqual(str(s), "02468")
         before_hash = hash(s)
@@ -85,11 +85,11 @@ class TestLStrCollapse(unittest.TestCase):
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "02468")
         self.assertEqual(before_hash, hash(s))
-        self.assertEqual(repr(s), "l" + repr("02468"))
+        self.assertEqual(repr(s), "L" + repr("02468"))
 
     def test_collapse_mulbuffer(self):
         """Repetition buffer collapses into repeated concrete string and preserves hash."""
-        s0 = lstring._lstr("ab")
+        s0 = lstring.L("ab")
         s = s0 * 4
         self.assertEqual(str(s), "abababab")
         before_hash = hash(s)
@@ -98,7 +98,7 @@ class TestLStrCollapse(unittest.TestCase):
         self.assertIsNone(s.collapse())
         self.assertEqual(str(s), "abababab")
         self.assertEqual(before_hash, hash(s))
-        self.assertEqual(repr(s), "l" + repr("abababab"))
+        self.assertEqual(repr(s), "L" + repr("abababab"))
 
 if __name__ == '__main__':
     unittest.main()

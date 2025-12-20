@@ -20,9 +20,9 @@ private:
 
 public:
     /**
-     * @brief Construct a repetition buffer that repeats `lstr` `count` times.
+     * @brief Construct a repetition buffer that repeats `L` `count` times.
      *
-     * @param lstr Python object that implements a Buffer (borrowed ref).
+     * @param L Python object that implements a Buffer (borrowed ref).
      * @param count Number of repetitions (must be non-negative).
      * @throws std::runtime_error if count is negative.
      */

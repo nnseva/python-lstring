@@ -1,6 +1,6 @@
 /**
  * @file lstring_methods.cxx
- * @brief Method implementations and method table for `_lstr`.
+ * @brief Method implementations and method table for `L`.
  */
 
 #include <Python.h>
@@ -16,9 +16,9 @@ static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds);
 
 /**
- * @brief Method table for the lstr type.
+ * @brief Method table for the L type.
  *
- * Contains Python-callable methods exposed on the `_lstr` type. Each entry
+ * Contains Python-callable methods exposed on the `L` type. Each entry
  * maps a method name to a C function and calling convention.
  */
 PyMethodDef LStr_methods[] = {
@@ -32,10 +32,10 @@ PyMethodDef LStr_methods[] = {
 
 
 /**
- * @brief Find method: search for a substring in the lstr.
+ * @brief Find method: search for a substring in the L.
  *
  * Signature: find(self, sub, start=None, end=None)
- * Accepts `sub` as either a Python str or another _lstr. Negative start/end
+ * Accepts `sub` as either a Python str or another L. Negative start/end
  * are interpreted as offsets from the end (slice semantics). Returns the
  * lowest index where sub is found, or -1 if not found.
  */
@@ -52,33 +52,33 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
 
     // Validate source buffer
     if (!self || !self->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
         return nullptr;
     }
     Buffer *src = self->buffer;
     Py_ssize_t src_len = (Py_ssize_t)src->length();
 
-    // Obtain a Buffer for sub: accept Python str or _lstr
+    // Obtain a Buffer for sub: accept Python str or L
     Buffer *sub_buf = nullptr;
     cppy::ptr sub_owner;
     if (PyUnicode_Check(sub_obj)) {
-        // wrap Python str into a temporary `_lstr` via factory and own it
+        // wrap Python str into a temporary `L` via factory and own it
         PyTypeObject *type = Py_TYPE(self);
         PyObject *tmp = make_lstr_from_pystr(type, sub_obj);
         if (!tmp) return nullptr;
         sub_owner = cppy::ptr(tmp);
         sub_buf = ((LStrObject*)tmp)->buffer;
     } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
-        // assume it's an _lstr-like object
+        // assume it's an L-like object
         LStrObject *lsub = (LStrObject*)sub_obj;
         if (!lsub->buffer) {
-            PyErr_SetString(PyExc_RuntimeError, "substring lstr has no buffer");
+            PyErr_SetString(PyExc_RuntimeError, "substring L has no buffer");
             return nullptr;
         }
         sub_owner = cppy::ptr(sub_obj, true); // incref
         sub_buf = lsub->buffer;
     } else {
-        PyErr_SetString(PyExc_TypeError, "sub must be str or _lstr");
+        PyErr_SetString(PyExc_TypeError, "sub must be str or L");
         return nullptr;
     }
 
@@ -193,13 +193,13 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
     }
 
     if (!self || !self->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
         return nullptr;
     }
     Buffer *src = self->buffer;
     Py_ssize_t src_len = (Py_ssize_t)src->length();
 
-    // Obtain sub buffer (str or _lstr)
+    // Obtain sub buffer (str or L)
     Buffer *sub_buf = nullptr;
     cppy::ptr sub_owner;
     if (PyUnicode_Check(sub_obj)) {
@@ -211,13 +211,13 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
     } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
         LStrObject *lsub = (LStrObject*)sub_obj;
         if (!lsub->buffer) {
-            PyErr_SetString(PyExc_RuntimeError, "substring lstr has no buffer");
+            PyErr_SetString(PyExc_RuntimeError, "substring L has no buffer");
             return nullptr;
         }
         sub_owner = cppy::ptr(sub_obj, true);
         sub_buf = lsub->buffer;
     } else {
-        PyErr_SetString(PyExc_TypeError, "sub must be str or _lstr");
+        PyErr_SetString(PyExc_TypeError, "sub must be str or L");
         return nullptr;
     }
 
@@ -319,7 +319,7 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
  */
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
     if (!self) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
         return nullptr;
     }
     lstr_collapse(self);
@@ -345,7 +345,7 @@ static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds) {
     }
 
     if (!self || !self->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
         return nullptr;
     }
     Buffer *buf = self->buffer;
@@ -419,7 +419,7 @@ static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds) {
     }
 
     if (!self || !self->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid lstr object");
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
         return nullptr;
     }
     Buffer *buf = self->buffer;

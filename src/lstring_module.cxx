@@ -74,14 +74,14 @@ static void lstring_free(void *module) {
     lstring_clear((PyObject*)module);
 }
 
-// Module exec: create the _lstr heap type from the PyType_Spec and store it in the module state
+// Module exec: create the L heap type from the PyType_Spec and store it in the module state
 static int lstring_mod_exec(PyObject *module) {
     lstring_state *st = get_lstring_state(module);
     PyObject *type_obj = PyType_FromSpec(&LStr_spec);
     if (!type_obj) return -1;
     st->LStrType = type_obj;
 
-    if (PyModule_AddObject(module, "_lstr", st->LStrType) < 0) {
+    if (PyModule_AddObject(module, "L", st->LStrType) < 0) {
         Py_CLEAR(st->LStrType);
         return -1;
     }
@@ -90,7 +90,7 @@ static int lstring_mod_exec(PyObject *module) {
 
 /**
  * @name Type slots
- * Methods and slots exposed on the lstr type.
+ * Methods and slots exposed on the L type.
  */
 static PyModuleDef_Slot lstring_slots[] = {
     {Py_mod_exec,   (void*)lstring_mod_exec},
@@ -100,7 +100,7 @@ static PyModuleDef_Slot lstring_slots[] = {
 static struct PyModuleDef lstring_def = {
     PyModuleDef_HEAD_INIT,
     "lstring",
-    "Module providing lazy string class 'lstr' for deferred buffer access",
+    "Module providing lazy string class 'L' for deferred buffer access",
     sizeof(lstring_state),
     lstring_module_methods,
     lstring_slots,
