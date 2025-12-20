@@ -143,16 +143,32 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
         return PyLong_FromSsize_t(idx);
     }
 
-    // Element-wise scanning using buffer->value()
+    // Optimized scan: find occurrences of the first code point of `sub`
+    // and only perform the full element-wise comparison at those
+    // candidate positions. This delegates single-codepoint search to
+    // the buffer implementation which may provide faster paths for
+    // joined/repeated/sliced buffers.
+    uint32_t first_cp = sub_buf->value(0);
+    Py_ssize_t pos = start;
     Py_ssize_t last = end - sub_len;
-    for (Py_ssize_t i = start; i <= last; ++i) {
+    while (pos <= last) {
+        // find next occurrence of first_cp in [pos, end)
+        Py_ssize_t i = src->findc(pos, end, first_cp);
+        if (i < 0 || i > last) break; // not found or not enough room for full match
+
+        // verify full substring match at position i
+        // We can skip j==0 because findc returned i where
+        // src->value(i) == first_cp == sub_buf->value(0).
         bool match = true;
-        for (Py_ssize_t j = 0; j < sub_len; ++j) {
+        for (Py_ssize_t j = 1; j < sub_len; ++j) {
             uint32_t a = src->value(i + j);
             uint32_t b = sub_buf->value(j);
             if (a != b) { match = false; break; }
         }
         if (match) return PyLong_FromSsize_t(i);
+
+        // advance to the next possible position after the found cp
+        pos = i + 1;
     }
 
     return PyLong_FromLong(-1);
@@ -267,17 +283,28 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
         return PyLong_FromSsize_t(idx);
     }
 
-    // Scan from the right: i goes from last down to start
-    Py_ssize_t last = end - sub_len;
-    for (Py_ssize_t i = last; i >= start; --i) {
+    // Scan from the right using rfindc on the LAST code point of `sub`.
+    // When rfindc returns an index `pos` where src->value(pos) == last_cp,
+    // that corresponds to a candidate match last code point.
+    // Verify the substring by comparing the
+    // remaining code points in backward direction.
+    uint32_t last_cp = sub_buf->value(sub_len - 1);
+    Py_ssize_t pos = end; // rfindc searches in [start, pos)
+    while (pos > start + sub_len - 1) {
+        Py_ssize_t k = src->rfindc(start, pos, last_cp);
+        if (k < 0) break; // no more occurrences
+        if (k < start + sub_len - 1) break; // not enough room for full match
+
+        // verify substring backward; we can skip comparing the last
+        // code point because rfindc already matched it at `k`.
         bool match = true;
-        for (Py_ssize_t j = 0; j < sub_len; ++j) {
-            uint32_t a = src->value(i + j);
-            uint32_t b = sub_buf->value(j);
+        for (Py_ssize_t j = 1; j < sub_len; ++j) {
+            uint32_t a = src->value(k - j);
+            uint32_t b = sub_buf->value(sub_len - j - 1);
             if (a != b) { match = false; break; }
         }
-        if (match) return PyLong_FromSsize_t(i);
-        if (i == 0) break; // prevent underflow for Py_ssize_t
+        if (match) return PyLong_FromSsize_t(k - sub_len + 1);
+        pos = k; // continue searching earlier
     }
 
     return PyLong_FromLong(-1);

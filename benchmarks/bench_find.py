@@ -15,7 +15,7 @@ import argparse
 from lstring import _lstr
 
 
-def build_test_strings(total_len=10_000_000, fragment="needle", filler="a"):
+def build_test_strings(total_len=10_000_000, fragment="needle", filler="qwertyuiop"):
     # Compute how many filler characters to place on the left and right of fragment.
     frag_len = len(fragment)
     if frag_len > total_len:
@@ -74,7 +74,7 @@ def time_find(py, lz, sub, runs=5):
 
         # sliced needle (or sliced haystack) - this should bypass fast-path
         t0 = time.perf_counter()
-        k = lz.find(sliced_needle)
+        k = sliced_hay.find(sliced_needle)
         t1 = time.perf_counter()
         lz_sliced_times.append(t1 - t0)
 
@@ -89,12 +89,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--size', type=int, default=10_000_000,
                         help='total size of the test string in bytes')
+    parser.add_argument('--filler', type=str, default='qwertyuiop',
+                        help='filler string to use for building the large string')
+    parser.add_argument('--fragment', type=str, default='needle',
+                        help='fragment string to insert into the large string and search for')
     parser.add_argument('--runs', type=int, default=7,
                         help='number of runs to average')
     args = parser.parse_args()
 
     print(f"Building test strings of size {args.size}...")
-    py, lz, sub = build_test_strings(total_len=args.size, fragment="needle")
+    py, lz, sub = build_test_strings(total_len=args.size, fragment=args.fragment, filler=args.filler)
     print("Built. Running benchmarks...")
 
     py_times, lz_fast_times, lz_sliced_times = time_find(py, lz, sub, runs=args.runs)

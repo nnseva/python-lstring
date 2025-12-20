@@ -89,6 +89,19 @@ class TestLStrRFind(unittest.TestCase):
         self._check_three(s, 'β')
         self._check_three(s, 'αβ', 1, 5)
 
+    def test_edge_cases_start_end_and_single(self):
+        # sub length == 1
+        s = 'xyzxyz'
+        self._check_three(s, 'x')
+
+        # sub matches the start of the string
+        s2 = 'start_middle_end'
+        self._check_three(s2, 'start')
+
+        # sub matches the end of the string
+        s3 = 'hello_world'
+        self._check_three(s3, 'world')
+
 
 if __name__ == '__main__':
     unittest.main()
