@@ -1,5 +1,6 @@
 import unittest
 import lstring
+import lstring.re
 
 
 class TestLStrRe(unittest.TestCase):

@@ -295,26 +295,35 @@ static struct PyModuleDef lstring_re_def = {
 
 // Create and initialize the submodule, attach to parent module as attribute 're'.
 int lstring_re_mod_exec(PyObject *parent_module, const char *submodule_name) {
-    PyObject *submodule = PyModule_Create(&lstring_re_def);
+    cppy::ptr submodule(PyModule_Create(&lstring_re_def));
     if (!submodule) {
         return -1;
     }
+    
+    // Add the submodule to sys.modules for direct import (import _lstring.re)
+    PyObject *sys_modules = PyImport_GetModuleDict();  // borrowed reference
+    if (sys_modules) {
+        if (PyDict_SetItemString(sys_modules, "_lstring.re", submodule.get()) < 0) {
+            return -1;
+        }
+    }
+    
     // Add the submodule to the parent module as attribute 're'
-    if (PyModule_AddObject(parent_module, submodule_name, Py_NewRef(submodule)) < 0) {
+    if (PyModule_AddObject(parent_module, submodule_name, Py_NewRef(submodule.get())) < 0) {
         return -1;
     }
 
     // Optionally add a convenience attribute
-    if (PyModule_AddStringConstant(submodule, "__doc__", "Regex helpers for lstring.L") < 0) {
+    if (PyModule_AddStringConstant(submodule.get(), "__doc__", "Regex helpers for lstring.L") < 0) {
         return -1;
     }
 
     // Create and register Pattern type in the submodule (implementation
     // provided by lstring_re_pattern.cxx)
-    if (lstring_re_register_pattern_type(submodule) < 0) return -1;
+    if (lstring_re_register_pattern_type(submodule.get()) < 0) return -1;
 
     // Create and register Match type (stubbed implementation)
-    if (lstring_re_register_match_type(submodule) < 0) return -1;
+    if (lstring_re_register_match_type(submodule.get()) < 0) return -1;
 
     return 0;
 }

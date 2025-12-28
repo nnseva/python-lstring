@@ -1,5 +1,6 @@
 """Tests for Pattern.findall, Pattern.finditer, and Pattern.split"""
 import lstring
+import lstring.re
 import unittest
 
 

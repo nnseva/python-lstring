@@ -23,8 +23,4 @@ get_optimize_threshold = _lstring.get_optimize_threshold
 set_optimize_threshold = _lstring.set_optimize_threshold
 
 
-# Import re module from lstring.re
-from . import re
-
-
-__all__ = ['L', 're', 'get_optimize_threshold', 'set_optimize_threshold']
+__all__ = ['L', 'get_optimize_threshold', 'set_optimize_threshold']
