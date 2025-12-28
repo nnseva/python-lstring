@@ -7,6 +7,7 @@
 #include <cstdio>
 
 #include "lstring.hxx"
+#include "lstring_re.hxx"
 
 /**
  * @brief Module-local state structure used by the multi-phase init.
@@ -17,6 +18,9 @@ struct lstring_state {
 
 // The LStr_spec is defined in the implementation file for the type.
 extern PyType_Spec LStr_spec;
+
+// Factory created in lstring_re_module.cxx; exported with C linkage.
+extern "C" PyObject* lstring_re_create_submodule();
 
 /**
  * @brief Global process-wide optimize threshold.
@@ -85,6 +89,10 @@ static int lstring_mod_exec(PyObject *module) {
         Py_CLEAR(st->LStrType);
         return -1;
     }
+
+    if (lstring_re_mod_exec(module) < 0) {
+        return -1;
+    }
     return 0;
 }
 
@@ -99,7 +107,7 @@ static PyModuleDef_Slot lstring_slots[] = {
 
 static struct PyModuleDef lstring_def = {
     PyModuleDef_HEAD_INIT,
-    "lstring",
+    "_lstring",
     "Module providing lazy string class 'L' for deferred buffer access",
     sizeof(lstring_state),
     lstring_module_methods,
@@ -109,6 +117,6 @@ static struct PyModuleDef lstring_def = {
     lstring_free
 };
 
-PyMODINIT_FUNC PyInit_lstring(void) {
+PyMODINIT_FUNC PyInit__lstring(void) {
     return PyModuleDef_Init(&lstring_def);
 }

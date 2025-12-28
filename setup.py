@@ -8,12 +8,15 @@ import tempfile
 
 ext_modules = [
     Extension(
-        name='lstring',
+        name='_lstring',
         sources=[
             'src/lstring.cxx',
             'src/lstring_methods.cxx',
             'src/lstring_utils.cxx',
-            'src/lstring_module.cxx'
+            'src/lstring_module.cxx',
+            'src/lstring_re_module.cxx',
+            'src/lstring_re_pattern.cxx',
+            'src/lstring_re_match.cxx',
         ],
         include_dirs=['.'],
         depends=[
@@ -24,6 +27,11 @@ ext_modules = [
             'src/str_buffer.hxx',
             'src/lstring.hxx',
             'src/lstring_utils.hxx',
+            'src/lstring_re.hxx',
+            'src/lstring_re_iterator.hxx',
+            'src/lstring_re_regex.hxx',
+            'src/lstring_re_pattern.hxx',
+            'src/lstring_re_match.hxx',
         ],
         language='c++',
     ),
@@ -44,108 +52,74 @@ class BuildExt(build_ext):
             # prefer user-specified BOOST_ROOT pointing to boost root containing 'boost' dir
             boost_root = os.environ.get('BOOST_ROOT')
             if boost_root:
-                # Accept either a layout where BOOST_ROOT/boost exists (headers) or
-                # a full extracted source tree (BOOST_ROOT/libs/regex/include present)
-                if os.path.isdir(os.path.join(boost_root, 'boost')) or os.path.isdir(os.path.join(boost_root, 'libs', 'regex', 'include')):
-                    boost_inc = boost_root
-
-            # if not provided, check build/_boost_include
+                # Accept a layout where BOOST_ROOT/libs/regex/include present)
+                if not os.path.isdir(os.path.join(boost_root, 'libs', 'regex', 'include')):
+                    raise RuntimeError('BOOST_ROOT does not contain Boost regex headers')
+                boost_inc = boost_root
+            elif os.path.isdir('build'):
+                # check for an already-extracted boost_<ver> or boost-<ver> in build/
+                for d in os.listdir('build'):
+                    if d.startswith('boost_') or d.startswith('boost-'):
+                        print('Found existing Boost extraction in build/', d)
+                        extracted_root = os.path.join('build', d)
+                        if os.path.isdir(extracted_root):
+                            # Accept layout the root boost-<ver> tree
+                            boost_inc = extracted_root
+                            break
             if not boost_inc:
-                candidate = os.path.abspath(os.path.join('build', '_boost_include'))
-                if os.path.isdir(candidate):
-                    boost_inc = candidate
+                print('Boost predownloaded build not found; will attempt to download')
+                boost_url = os.environ.get('BOOST_URL')
+                if not boost_url:
+                    # canonical GitHub 1.82.0 release
+                    boost_url = 'https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.gz'
 
-            # also check for an already-extracted boost_<ver> or boost-<ver> in build/
-            if not boost_inc and os.path.isdir('build'):
+                print('Attempting to download Boost from', boost_url)
+                os.makedirs('build', exist_ok=True)
+                tmpfd, tmpname = tempfile.mkstemp(suffix='.tar.gz')
+                os.close(tmpfd)
+                # Use a Request with a User-Agent to avoid some mirrors returning HTML pages
+                req = urllib.request.Request(boost_url, headers={'User-Agent': 'python-urllib/3.x (embed-boost)'})
+                with urllib.request.urlopen(req) as resp:
+                    if getattr(resp, 'status', 200) != 200:
+                        raise RuntimeError(f'HTTP error downloading Boost: {getattr(resp, "status", None)}')
+                    with open(tmpname, 'wb') as out:
+                        shutil.copyfileobj(resp, out)
+                # quick gzip signature check
+                with open(tmpname, 'rb') as f:
+                    sig = f.read(2)
+                if sig != b'\x1f\x8b':
+                    raise RuntimeError('Downloaded file is not gzip')
+                with tarfile.open(tmpname, 'r:gz') as tf:
+                    tf.extractall(path='build')
+                # set boost_inc if we can detect extracted tree
                 for d in os.listdir('build'):
                     if d.startswith('boost_') or d.startswith('boost-'):
                         extracted_root = os.path.join('build', d)
                         if os.path.isdir(extracted_root):
-                            # Accept either layout: nested 'boost' dir or the root boost-<ver> tree
                             boost_inc = extracted_root
                             break
 
-            # download boost and extract full boost/ into build/_boost_include if necessary
             if not boost_inc:
-                # Try a small set of likely URLs (user can override with BOOST_URL)
-                user_url = os.environ.get('BOOST_URL')
-                candidates = []
-                if user_url:
-                    candidates.append(user_url)
-                # canonical GitHub release (dash and underscore variants)
-                candidates.extend([
-                    'https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.gz',
-                    'https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost_1_82_0.tar.gz',
-                    # jfrog mirror as fallback
-                    'https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.tar.gz',
-                ])
-                last_exc = None
-                tmpname = None
-                for url in candidates:
-                    try:
-                        target = os.path.abspath(os.path.join('build', '_boost_include'))
-                        print('Attempting to download Boost from', url)
-                        os.makedirs('build', exist_ok=True)
-                        tmpfd, tmpname = tempfile.mkstemp(suffix='.tar.gz')
-                        os.close(tmpfd)
-                        # Use a Request with a User-Agent to avoid some mirrors returning HTML pages
-                        req = urllib.request.Request(url, headers={'User-Agent': 'python-urllib/3.x (embed-boost)'})
-                        with urllib.request.urlopen(req) as resp:
-                            if getattr(resp, 'status', 200) != 200:
-                                raise RuntimeError(f'HTTP error downloading Boost: {getattr(resp, "status", None)}')
-                            with open(tmpname, 'wb') as out:
-                                shutil.copyfileobj(resp, out)
-                        # quick gzip signature check
-                        with open(tmpname, 'rb') as f:
-                            sig = f.read(2)
-                        if sig != b'\x1f\x8b':
-                            raise RuntimeError('Downloaded file is not gzip')
-                        with tarfile.open(tmpname, 'r:gz') as tf:
-                            tf.extractall(path='build')
-                        # set boost_inc if we can detect extracted tree
-                        for d in os.listdir('build'):
-                            if d.startswith('boost_') or d.startswith('boost-'):
-                                extracted_root = os.path.join('build', d)
-                                if os.path.isdir(extracted_root):
-                                    boost_inc = extracted_root
-                                    break
-                        if boost_inc:
-                            # success
-                            break
-                    except Exception as e:
-                        last_exc = e
-                        if tmpname and os.path.exists(tmpname):
-                            try:
-                                os.unlink(tmpname)
-                            except Exception:
-                                pass
-                        tmpname = None
-                        continue
-                if not boost_inc:
-                    # surface a clearer error including the last exception
-                    raise RuntimeError('Failed to download and extract Boost; last error: %r' % (last_exc,))
-
-            if not boost_inc:
-                raise RuntimeError('Boost headers not available; set BOOST_ROOT or ensure download works')
+                raise RuntimeError('Boost headers not available; set BOOST_ROOT to the Boost root or ensure download works')
 
             # Determine base root of boost sources for includes and sources
             base_root = boost_inc
-            # If boost_inc points to a 'boost' subdir, base_root should be its parent
-            if os.path.isdir(os.path.join(boost_inc, 'boost')):
-                # boost_inc is a directory that contains 'boost' (maybe the root)
-                base_root = boost_inc
-            # collect include dirs to add: root (if contains 'boost') and libs/*/include where present
-            include_dirs_added = []
-            if os.path.isdir(os.path.join(base_root, 'boost')):
-                include_dirs_added.append(base_root)
-            # also add libs/regex/include if present
-            regex_inc = os.path.join(base_root, 'libs', 'regex', 'include')
-            if os.path.isdir(regex_inc):
-                include_dirs_added.append(regex_inc)
-
-            # fallback: if none found but boost_inc exists, add it
-            if not include_dirs_added:
-                include_dirs_added.append(boost_inc)
+            # collect include dirs to add: libs/*/include
+            include_dirs_added = [
+                os.path.join(base_root, 'libs', 'config', 'include'),
+                os.path.join(base_root, 'libs', 'assert', 'include'),
+                os.path.join(base_root, 'libs', 'predef', 'include'),
+                os.path.join(base_root, 'libs', 'throw_exception', 'include'),
+                os.path.join(base_root, 'libs', 'core', 'include'),
+                os.path.join(base_root, 'libs', 'mpl', 'include'),
+                os.path.join(base_root, 'libs', 'type_traits', 'include'),
+                os.path.join(base_root, 'libs', 'indirect_traits', 'include'),
+                os.path.join(base_root, 'libs', 'detail', 'include'),
+                os.path.join(base_root, 'libs', 'static_assert', 'include'),
+                os.path.join(base_root, 'libs', 'preprocessor', 'include'),
+                os.path.join(base_root, 'libs', 'iterator', 'include'),
+                os.path.join(base_root, 'libs', 'regex', 'include'),
+            ]
 
             # insert discovered include dirs at front
             for p in reversed(include_dirs_added):
@@ -175,6 +149,8 @@ class BuildExt(build_ext):
                 ext.define_macros = []
             # disable Boost auto-linking to avoid conflicts
             ext.define_macros.append(('BOOST_ALL_NO_LIB', None))
+            # setup Boost locale to C++ locale
+            ext.define_macros.append(('BOOST_REGEX_USE_CPP_LOCALE', '1'))
 
             # set C++ standard flags
             if not hasattr(ext, 'extra_compile_args') or ext.extra_compile_args is None:
@@ -194,6 +170,7 @@ setup(
     version='0.0.1',
     python_requires='>=3.5',
     # build-time requirements are declared in pyproject.toml
+    py_modules=['lstring'],
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExt},
 )
