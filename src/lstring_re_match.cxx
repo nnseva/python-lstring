@@ -11,76 +11,57 @@ using CharT = wchar_t;
 // Match.__new__(cls, pattern: Pattern, subject: L)
 static PyObject*
 Match_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+    // Allocate Match object without initialization
+    MatchObject *self = (MatchObject*)type->tp_alloc(type, 0);
+    if (!self) return nullptr;
+    
+    self->matchbuf = nullptr;
+    
+    return (PyObject*)self;
+}
+
+// Match.__init__(self, pattern: Pattern, subject: L)
+static int
+Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
+    MatchObject *self = (MatchObject*)self_obj;
     PyObject *pattern_obj = nullptr;
     PyObject *subject_obj = nullptr;
     static char *kwlist[] = {(char*)"pattern", (char*)"subject", nullptr};
     
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist, &pattern_obj, &subject_obj)) {
-        return nullptr;
+        return -1;
     }
     
     // Verify pattern is a Pattern instance
     cppy::ptr lmod(PyImport_ImportModule("_lstring"));
-    if (!lmod) return nullptr;
+    if (!lmod) return -1;
     cppy::ptr re_sub(PyObject_GetAttrString(lmod.get(), "re"));
-    if (!re_sub) return nullptr;
+    if (!re_sub) return -1;
     cppy::ptr pattern_type(PyObject_GetAttrString(re_sub.get(), "Pattern"));
-    if (!pattern_type) return nullptr;
+    if (!pattern_type) return -1;
     
     int is_pattern = PyObject_IsInstance(pattern_obj, pattern_type.get());
-    if (is_pattern == -1) return nullptr;
+    if (is_pattern == -1) return -1;
     if (is_pattern == 0) {
         PyErr_SetString(PyExc_TypeError, "pattern must be an instance of _lstring.re.Pattern");
-        return nullptr;
+        return -1;
     }
     
-    // Verify subject is lstring.L
-    cppy::ptr subject_to_use;
-    if (PyUnicode_Check(subject_obj)) {
-        // Convert str to L
-        PyObject *tmp = make_lstr_from_pystr(subject_obj);
-        if (!tmp) return nullptr;
-        subject_to_use = cppy::ptr(tmp);
-        subject_obj = subject_to_use.get();
-    } else {
-        cppy::ptr LType(get_string_lstr_type());
-        if (!LType) return nullptr;
-        int is_lstr = PyObject_IsInstance(subject_obj, LType.get());
-        if (is_lstr == -1) return nullptr;
-        if (is_lstr == 0) {
-            PyErr_SetString(PyExc_TypeError, "subject must be lstring.L or str");
-            return nullptr;
-        }
-        subject_to_use = cppy::ptr(subject_obj, true);
+    // Verify subject is lstring.L (no str conversion here)
+    cppy::ptr LType(get_string_lstr_type());
+    if (!LType) return -1;
+    int is_lstr = PyObject_IsInstance(subject_obj, LType.get());
+    if (is_lstr == -1) return -1;
+    if (is_lstr == 0) {
+        PyErr_SetString(PyExc_TypeError, "subject must be lstring.L");
+        return -1;
     }
-    
-    // Allocate Match object
-    MatchObject *self = (MatchObject*)type->tp_alloc(type, 0);
-    if (!self) return nullptr;
-    cppy::ptr self_owner((PyObject*)self);
     
     // Create LStrMatchBuffer
     try {
-        self->matchbuf = new LStrMatchBuffer<CharT>(pattern_obj, subject_to_use.get());
+        self->matchbuf = new LStrMatchBuffer<CharT>(pattern_obj, subject_obj);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
-        return nullptr;
-    }
-    
-    return self_owner.release();
-}
-
-// Match.__init__(self, pattern: Pattern, subject: L)
-// This is needed to support proper inheritance - subclasses can override __init__
-static int
-Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
-    // Base Match initialization is done in __new__, so __init__ is a no-op
-    // This just validates arguments for consistency
-    PyObject *pattern_obj = nullptr;
-    PyObject *subject_obj = nullptr;
-    static char *kwlist[] = {(char*)"pattern", (char*)"subject", nullptr};
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist, &pattern_obj, &subject_obj)) {
         return -1;
     }
     
@@ -99,6 +80,7 @@ Match_dealloc(PyObject *self_obj) {
 }
 
 // Helper: extract single group by index or name and return as L object
+// Accepts only int (index) or lstring.L (name), no str conversion
 static PyObject*
 extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
     LStrObject *where_lobj = reinterpret_cast<LStrObject*>(buf->where.get());
@@ -132,26 +114,15 @@ extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
         return (PyObject*)result;
     }
     
-    // Check if argument is a string (group name)
-    // Accept both str and lstring.L
-    LStrObject *name_lobj = nullptr;
-    cppy::ptr temp_lobj;
-    
-    if (PyUnicode_Check(arg_obj)) {
-        // Convert str to L
-        temp_lobj = cppy::ptr(PyObject_CallFunctionObjArgs((PyObject*)lstr_type, arg_obj, nullptr));
-        if (!temp_lobj) return nullptr;
-        name_lobj = reinterpret_cast<LStrObject*>(temp_lobj.get());
-    } else {
-        // Check if it's an L or subclass
-        int is_lstr = PyObject_IsInstance(arg_obj, (PyObject*)lstr_type);
-        if (is_lstr == -1) return nullptr;
-        if (is_lstr == 0) {
-            PyErr_SetString(PyExc_TypeError, "group() argument must be an integer, str, or lstring.L");
-            return nullptr;
-        }
-        name_lobj = reinterpret_cast<LStrObject*>(arg_obj);
+    // Check if argument is lstring.L (group name)
+    int is_lstr = PyObject_IsInstance(arg_obj, (PyObject*)lstr_type);
+    if (is_lstr == -1) return nullptr;
+    if (is_lstr == 0) {
+        PyErr_SetString(PyExc_TypeError, "group argument must be an integer or lstring.L");
+        return nullptr;
     }
+    
+    LStrObject *name_lobj = reinterpret_cast<LStrObject*>(arg_obj);
     
     // Convert L to std::basic_string<CharT> for Boost
     LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
@@ -339,25 +310,19 @@ static PyObject* Match_start(PyObject *self_obj, PyObject *args) {
             return PyLong_FromSsize_t(start_pos);
         }
         
-        // Handle string/L name
+        // Handle L name
         cppy::ptr lstr_type_ptr(get_string_lstr_type());
         if (!lstr_type_ptr) return nullptr;
         PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
         
-        LStrObject *name_lobj = nullptr;
-        cppy::ptr temp_lobj;
-        
-        if (PyUnicode_Check(group_arg)) {
-            temp_lobj = cppy::ptr(PyObject_CallFunctionObjArgs((PyObject*)lstr_type, group_arg, nullptr));
-            if (!temp_lobj) return nullptr;
-            name_lobj = reinterpret_cast<LStrObject*>(temp_lobj.get());
-        } else if (Py_TYPE(group_arg) == lstr_type) {
-            name_lobj = reinterpret_cast<LStrObject*>(group_arg);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "group index or name must be int, str, or L");
+        int is_lstr = PyObject_IsInstance(group_arg, (PyObject*)lstr_type);
+        if (is_lstr == -1) return nullptr;
+        if (is_lstr == 0) {
+            PyErr_SetString(PyExc_TypeError, "group index or name must be int or lstring.L");
             return nullptr;
         }
         
+        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg);
         LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
         LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
         std::basic_string<CharT> group_name(name_begin, name_end);
@@ -418,25 +383,19 @@ static PyObject* Match_end(PyObject *self_obj, PyObject *args) {
             return PyLong_FromSsize_t(end_pos);
         }
         
-        // Handle string/L name
+        // Handle L name
         cppy::ptr lstr_type_ptr(get_string_lstr_type());
         if (!lstr_type_ptr) return nullptr;
         PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
         
-        LStrObject *name_lobj = nullptr;
-        cppy::ptr temp_lobj;
-        
-        if (PyUnicode_Check(group_arg)) {
-            temp_lobj = cppy::ptr(PyObject_CallFunctionObjArgs((PyObject*)lstr_type, group_arg, nullptr));
-            if (!temp_lobj) return nullptr;
-            name_lobj = reinterpret_cast<LStrObject*>(temp_lobj.get());
-        } else if (Py_TYPE(group_arg) == lstr_type) {
-            name_lobj = reinterpret_cast<LStrObject*>(group_arg);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "group index or name must be int, str, or L");
+        int is_lstr = PyObject_IsInstance(group_arg, (PyObject*)lstr_type);
+        if (is_lstr == -1) return nullptr;
+        if (is_lstr == 0) {
+            PyErr_SetString(PyExc_TypeError, "group index or name must be int or lstring.L");
             return nullptr;
         }
         
+        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg);
         LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
         LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
         std::basic_string<CharT> group_name(name_begin, name_end);
@@ -507,25 +466,19 @@ static PyObject* Match_span(PyObject *self_obj, PyObject *args) {
             return result.release();
         }
         
-        // Handle string/L name
+        // Handle L name
         cppy::ptr lstr_type_ptr(get_string_lstr_type());
         if (!lstr_type_ptr) return nullptr;
         PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
         
-        LStrObject *name_lobj = nullptr;
-        cppy::ptr temp_lobj;
-        
-        if (PyUnicode_Check(group_arg)) {
-            temp_lobj = cppy::ptr(PyObject_CallFunctionObjArgs((PyObject*)lstr_type, group_arg, nullptr));
-            if (!temp_lobj) return nullptr;
-            name_lobj = reinterpret_cast<LStrObject*>(temp_lobj.get());
-        } else if (Py_TYPE(group_arg) == lstr_type) {
-            name_lobj = reinterpret_cast<LStrObject*>(group_arg);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "group index or name must be int, str, or L");
+        int is_lstr = PyObject_IsInstance(group_arg, (PyObject*)lstr_type);
+        if (is_lstr == -1) return nullptr;
+        if (is_lstr == 0) {
+            PyErr_SetString(PyExc_TypeError, "group index or name must be int or lstring.L");
             return nullptr;
         }
         
+        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg);
         LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
         LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
         std::basic_string<CharT> group_name(name_begin, name_end);
