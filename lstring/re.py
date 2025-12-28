@@ -6,6 +6,7 @@ exposing Pattern and Match classes that can be extended in Python.
 """
 
 import _lstring
+from lstring import L
 
 
 class Match(_lstring.re.Match):
@@ -25,10 +26,10 @@ class Match(_lstring.re.Match):
         """
         # Convert str to lstring.L if needed
         if isinstance(subject, str):
-            subject = _lstring.L(subject)
+            subject = L(subject)
         
         # Call C++ __init__
-        _lstring.re.Match.__init__(self, pattern, subject)
+        super().__init__(pattern, subject)
     
     def group(self, *args):
         """Return one or more subgroups of the match."""
@@ -36,34 +37,34 @@ class Match(_lstring.re.Match):
         converted_args = []
         for arg in args:
             if isinstance(arg, str):
-                converted_args.append(_lstring.L(arg))
+                converted_args.append(L(arg))
             else:
                 converted_args.append(arg)
-        return _lstring.re.Match.group(self, *converted_args)
+        return super().group(*converted_args)
     
     def __getitem__(self, key):
         """Return subgroup by index or name."""
         if isinstance(key, str):
-            key = _lstring.L(key)
-        return _lstring.re.Match.__getitem__(self, key)
+            key = L(key)
+        return super().__getitem__(key)
     
     def start(self, group=0):
         """Return start position of group."""
         if isinstance(group, str):
-            group = _lstring.L(group)
-        return _lstring.re.Match.start(self, group)
+            group = L(group)
+        return super().start(group)
     
     def end(self, group=0):
         """Return end position of group."""
         if isinstance(group, str):
-            group = _lstring.L(group)
-        return _lstring.re.Match.end(self, group)
+            group = L(group)
+        return super().end(group)
     
     def span(self, group=0):
         """Return (start, end) tuple of group."""
         if isinstance(group, str):
-            group = _lstring.L(group)
-        return _lstring.re.Match.span(self, group)
+            group = L(group)
+        return super().span(group)
 
 
 class Pattern(_lstring.re.Pattern):
@@ -85,37 +86,37 @@ class Pattern(_lstring.re.Pattern):
         """
         # Convert str to lstring.L if needed
         if isinstance(pattern, str):
-            pattern = _lstring.L(pattern)
+            pattern = L(pattern)
         
         if Match is None:
             Match = globals()['Match']  # Use lstring.re.Match by default
         
         # Call C++ __init__
-        _lstring.re.Pattern.__init__(self, pattern, flags, Match)
+        super().__init__(pattern, flags, Match)
     
     def match(self, string, pos=0, endpos=None):
         """Try to match pattern at the start of string."""
         if isinstance(string, str):
-            string = _lstring.L(string)
+            string = L(string)
         if endpos is None:
-            return _lstring.re.Pattern.match(self, string, pos)
-        return _lstring.re.Pattern.match(self, string, pos, endpos)
+            return super().match(string, pos)
+        return super().match(string, pos, endpos)
     
     def search(self, string, pos=0, endpos=None):
         """Scan through string looking for a match."""
         if isinstance(string, str):
-            string = _lstring.L(string)
+            string = L(string)
         if endpos is None:
-            return _lstring.re.Pattern.search(self, string, pos)
-        return _lstring.re.Pattern.search(self, string, pos, endpos)
+            return super().search(string, pos)
+        return super().search(string, pos, endpos)
     
     def fullmatch(self, string, pos=0, endpos=None):
         """Try to match the entire string."""
         if isinstance(string, str):
-            string = _lstring.L(string)
+            string = L(string)
         if endpos is None:
-            return _lstring.re.Pattern.fullmatch(self, string, pos)
-        return _lstring.re.Pattern.fullmatch(self, string, pos, endpos)
+            return super().fullmatch(string, pos)
+        return super().fullmatch(string, pos, endpos)
     
     def findall(self, string, pos=0, endpos=None):
         """Return a list of all non-overlapping matches.
@@ -125,7 +126,7 @@ class Pattern(_lstring.re.Pattern):
         has more than one group.
         """
         if isinstance(string, str):
-            string = _lstring.L(string)
+            string = L(string)
         
         result = []
         for m in self.finditer(string, pos, endpos):
@@ -147,7 +148,7 @@ class Pattern(_lstring.re.Pattern):
     def finditer(self, string, pos=0, endpos=None):
         """Return an iterator over all non-overlapping matches."""
         if isinstance(string, str):
-            string = _lstring.L(string)
+            string = L(string)
         
         # Use endpos as length if not specified
         if endpos is None:
@@ -155,7 +156,7 @@ class Pattern(_lstring.re.Pattern):
         
         # Yield matches using search in a loop
         while pos <= endpos:
-            m = _lstring.re.Pattern.search(self, string, pos, endpos)
+            m = super().search(string, pos, endpos)
             if m is None:
                 break
             yield m
@@ -175,14 +176,14 @@ class Pattern(_lstring.re.Pattern):
         included in the resulting list.
         """
         if isinstance(string, str):
-            string = _lstring.L(string)
+            string = L(string)
         
         result = []
         pos = 0
         splits = 0
         
         while maxsplit == 0 or splits < maxsplit:
-            m = _lstring.re.Pattern.search(self, string, pos)
+            m = super().search(string, pos)
             if m is None:
                 break
             
