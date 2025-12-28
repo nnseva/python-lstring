@@ -15,7 +15,86 @@ class L(_lstring.L):
     Inherits from _lstring.L to allow Python-level customization while
     maintaining C++ performance for core operations.
     """
-    pass
+    
+    def join(self, iterable):
+        """
+        Join elements of iterable with self as separator.
+        
+        Uses recursive binary splitting to build a balanced tree structure
+        for efficient lazy string operations.
+        
+        Args:
+            iterable: An iterable of str or L instances
+        
+        Returns:
+            L: A lazy string containing the joined elements
+        
+        Raises:
+            TypeError: If any element is not str or L instance
+        
+        Examples:
+            >>> L(', ').join(['a', 'b', 'c'])
+            L('a, b, c')
+            >>> L('').join(['hello', 'world'])
+            L('helloworld')
+        """
+        # Convert iterable to list to allow indexing and length operations
+        if isinstance(iterable, (list, tuple)):
+            items = iterable
+        else:
+            items = list(iterable)
+        
+        # Convert all items to L instances, validating types
+        converted_items = []
+        for i, item in enumerate(items):
+            if isinstance(item, _lstring.L):
+                converted_items.append(item)
+            elif isinstance(item, str):
+                converted_items.append(L(item))
+            else:
+                raise TypeError(
+                    f"sequence item {i}: expected str or L instance, "
+                    f"{type(item).__name__} found"
+                )
+        
+        # Special case: empty separator - just join without separator
+        if len(self) == 0:
+            return self._join_empty(converted_items)
+        else:
+            # Non-empty separator: append separator to all items except last
+            if len(converted_items) == 0:
+                return L('')
+            elif len(converted_items) == 1:
+                return converted_items[0]
+            else:
+                # Create new list where each item (except last) is concatenated with separator
+                items_with_sep = [converted_items[i] + self for i in range(len(converted_items) - 1)] + [converted_items[-1]]
+                return self._join_empty(items_with_sep)
+    
+    def _join_empty(self, items):
+        """
+        Helper method to join items without separator using recursive binary splitting.
+        
+        Builds a balanced tree by recursively dividing the list in half.
+        
+        Args:
+            items: List of L instances to join
+        
+        Returns:
+            L: Joined lazy string
+        """
+        if len(items) == 0:
+            return L('')
+        elif len(items) == 1:
+            return items[0]
+        elif len(items) == 2:
+            return items[0] + items[1]
+        else:
+            # Divide list in half and recursively join each half
+            mid = len(items) // 2
+            left = self._join_empty(items[:mid])
+            right = self._join_empty(items[mid:])
+            return left + right
 
 
 # Re-export utility functions from _lstring
