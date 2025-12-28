@@ -247,13 +247,6 @@ Match_groups(PyObject *self_obj, PyObject *args) {
     return result_tuple.release();
 }
 
-// expand(template)
-static PyObject*
-Match_expand(PyObject *self_obj, PyObject *args) {
-    PyErr_SetString(PyExc_NotImplementedError, "Match.expand() not implemented yet");
-    return nullptr;
-}
-
 // __getitem__(index_or_name) - equivalent to group(index_or_name)
 static PyObject*
 Match_getitem(PyObject *self_obj, PyObject *key) {
@@ -555,7 +548,6 @@ static PyMethodDef Match_methods[] = {
     {"start", (PyCFunction)Match_start, METH_VARARGS, "Return start position of group."},
     {"end", (PyCFunction)Match_end, METH_VARARGS, "Return end position of group."},
     {"span", (PyCFunction)Match_span, METH_VARARGS, "Return (start, end) tuple of group."},
-    {"expand", (PyCFunction)Match_expand, METH_VARARGS, "Expand template with group contents (not implemented)."},
     {nullptr, nullptr, 0, nullptr}
 };
 

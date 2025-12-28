@@ -231,19 +231,32 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     }
 
     // Determine L type and validate operands. If one operand is a Python
-    // str, the other must be an L. Otherwise both operands must be the
-    // same L type. For unsupported combos, return a clear error that
-    // includes the Python-level type names.
+    // str, the other must be an L. Otherwise both operands must be compatible
+    // L types (same type or one is a subclass of the other). For unsupported
+    // combos, return a clear error that includes the Python-level type names.
     PyTypeObject *type = nullptr;
-    if (!left_is_str && !right_is_str && Py_TYPE(left) != Py_TYPE(right)) {
-        // neither is Python str: require both be same L type
-        cppy::ptr lt(PyObject_Type(left), true);
-        cppy::ptr rt(PyObject_Type(right), true);
-        PyErr_Format(PyExc_TypeError, "Operation %R + %R not supported", lt.get(), rt.get());
-        return nullptr;
-    }
-
-    if (left_is_str) {
+    if (!left_is_str && !right_is_str) {
+        PyTypeObject *left_type = Py_TYPE(left);
+        PyTypeObject *right_type = Py_TYPE(right);
+        
+        // Check if types are compatible (same or one is subclass of the other)
+        if (left_type != right_type && 
+            !PyType_IsSubtype(left_type, right_type) && 
+            !PyType_IsSubtype(right_type, left_type)) {
+            // Types are incompatible
+            cppy::ptr lt(PyObject_Type(left), true);
+            cppy::ptr rt(PyObject_Type(right), true);
+            PyErr_Format(PyExc_TypeError, "Operation %R + %R not supported", lt.get(), rt.get());
+            return nullptr;
+        }
+        
+        // Use the more specific type (subclass) for the result
+        if (PyType_IsSubtype(left_type, right_type)) {
+            type = left_type;  // left is subclass of right (or same)
+        } else {
+            type = right_type;  // right is subclass of left
+        }
+    } else if (left_is_str) {
         type = Py_TYPE(right);
     } else {
         type = Py_TYPE(left);
