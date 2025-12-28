@@ -8,6 +8,85 @@
 // Use the same CharT choice as other regex components in this build.
 using CharT = wchar_t;
 
+// Match.__new__(cls, pattern: Pattern, subject: L)
+static PyObject*
+Match_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+    PyObject *pattern_obj = nullptr;
+    PyObject *subject_obj = nullptr;
+    static char *kwlist[] = {(char*)"pattern", (char*)"subject", nullptr};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist, &pattern_obj, &subject_obj)) {
+        return nullptr;
+    }
+    
+    // Verify pattern is a Pattern instance
+    cppy::ptr lmod(PyImport_ImportModule("_lstring"));
+    if (!lmod) return nullptr;
+    cppy::ptr re_sub(PyObject_GetAttrString(lmod.get(), "re"));
+    if (!re_sub) return nullptr;
+    cppy::ptr pattern_type(PyObject_GetAttrString(re_sub.get(), "Pattern"));
+    if (!pattern_type) return nullptr;
+    
+    int is_pattern = PyObject_IsInstance(pattern_obj, pattern_type.get());
+    if (is_pattern == -1) return nullptr;
+    if (is_pattern == 0) {
+        PyErr_SetString(PyExc_TypeError, "pattern must be an instance of _lstring.re.Pattern");
+        return nullptr;
+    }
+    
+    // Verify subject is lstring.L
+    cppy::ptr subject_to_use;
+    if (PyUnicode_Check(subject_obj)) {
+        // Convert str to L
+        PyObject *tmp = make_lstr_from_pystr(subject_obj);
+        if (!tmp) return nullptr;
+        subject_to_use = cppy::ptr(tmp);
+        subject_obj = subject_to_use.get();
+    } else {
+        cppy::ptr LType(get_string_lstr_type());
+        if (!LType) return nullptr;
+        int is_lstr = PyObject_IsInstance(subject_obj, LType.get());
+        if (is_lstr == -1) return nullptr;
+        if (is_lstr == 0) {
+            PyErr_SetString(PyExc_TypeError, "subject must be lstring.L or str");
+            return nullptr;
+        }
+        subject_to_use = cppy::ptr(subject_obj, true);
+    }
+    
+    // Allocate Match object
+    MatchObject *self = (MatchObject*)type->tp_alloc(type, 0);
+    if (!self) return nullptr;
+    cppy::ptr self_owner((PyObject*)self);
+    
+    // Create LStrMatchBuffer
+    try {
+        self->matchbuf = new LStrMatchBuffer<CharT>(pattern_obj, subject_to_use.get());
+    } catch (const std::exception &e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    }
+    
+    return self_owner.release();
+}
+
+// Match.__init__(self, pattern: Pattern, subject: L)
+// This is needed to support proper inheritance - subclasses can override __init__
+static int
+Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
+    // Base Match initialization is done in __new__, so __init__ is a no-op
+    // This just validates arguments for consistency
+    PyObject *pattern_obj = nullptr;
+    PyObject *subject_obj = nullptr;
+    static char *kwlist[] = {(char*)"pattern", (char*)"subject", nullptr};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist, &pattern_obj, &subject_obj)) {
+        return -1;
+    }
+    
+    return 0;
+}
+
 static void
 Match_dealloc(PyObject *self_obj) {
     MatchObject *self = (MatchObject*)self_obj;
@@ -64,8 +143,10 @@ extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
         if (!temp_lobj) return nullptr;
         name_lobj = reinterpret_cast<LStrObject*>(temp_lobj.get());
     } else {
-        // Check if it's already an L
-        if (Py_TYPE(arg_obj) != lstr_type) {
+        // Check if it's an L or subclass
+        int is_lstr = PyObject_IsInstance(arg_obj, (PyObject*)lstr_type);
+        if (is_lstr == -1) return nullptr;
+        if (is_lstr == 0) {
             PyErr_SetString(PyExc_TypeError, "group() argument must be an integer, str, or lstring.L");
             return nullptr;
         }
@@ -527,6 +608,8 @@ static PyMethodDef Match_methods[] = {
 
 int lstring_re_register_match_type(PyObject *submodule) {
     static PyType_Slot match_slots[] = {
+        {Py_tp_new, (void*)Match_new},
+        {Py_tp_init, (void*)Match_init},
         {Py_tp_dealloc, (void*)Match_dealloc},
         {Py_tp_repr, (void*)Match_repr},
         {Py_tp_methods, (void*)Match_methods},

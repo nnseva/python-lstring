@@ -165,16 +165,16 @@ static PyObject* parse_subject_argument(PyObject *args, cppy::ptr &subject_owner
     return subject;
 }
 
-// Create a new Match instance using the provided factory with refcount=1.
-// On failure the nullptr is returned.
-PyObject *lstring_re_create_match(PyObject *match_factory) {
-    cppy::ptr obj = PyObject_CallObject(match_factory, nullptr);
-	if (!obj) {
-		return nullptr;
-	}
-	MatchObject *m = (MatchObject*)obj.get();
-	m->matchbuf = 0;
-	return obj.release();
+// Create a new Match instance using the provided factory with pattern and subject.
+// Returns a new reference. On failure the nullptr is returned.
+PyObject *lstring_re_create_match(PyObject *match_factory, PyObject *pattern, PyObject *subject) {
+    cppy::ptr args(Py_BuildValue("(OO)", pattern, subject));
+    if (!args) return nullptr;
+    
+    cppy::ptr obj = PyObject_CallObject(match_factory, args.get());
+    if (!obj) return nullptr;
+    
+    return obj.release();
 }
 
 
@@ -191,13 +191,11 @@ static PyObject* Pattern_match(PyObject *self_obj, PyObject *args) {
     PyObject *subject = parse_subject_argument(args, subject_owner, pos, endpos);
     if (!subject) return nullptr;
 
-    cppy::ptr match_owner = lstring_re_create_match(self->match_factory);
-    if (!match_owner) {
-        return nullptr;
-    }
-    MatchObject *match_obj = (MatchObject *)(match_owner.get());
-    auto matchbuf = new LStrMatchBuffer<CharT>(self_obj, subject_owner.get());
-    match_obj->matchbuf = matchbuf;
+    cppy::ptr match_owner = lstring_re_create_match(self->match_factory, self_obj, subject);
+    if (!match_owner) return nullptr;
+    
+    MatchObject *match_obj = (MatchObject*)(match_owner.get());
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_obj->matchbuf);
 
     LStrObject *lobj = (LStrObject*)subject;
     bool found = false;
@@ -230,13 +228,11 @@ static PyObject* Pattern_search(PyObject *self_obj, PyObject *args) {
     PyObject *subject = parse_subject_argument(args, subject_owner, pos, endpos);
     if (!subject) return nullptr;
 
-    cppy::ptr match_owner = lstring_re_create_match(self->match_factory);
-    if (!match_owner) {
-        return nullptr;
-    }
-    MatchObject *match_obj = (MatchObject *)(match_owner.get());
-    auto matchbuf = new LStrMatchBuffer<CharT>(self_obj, subject_owner.get());
-    match_obj->matchbuf = matchbuf;
+    cppy::ptr match_owner = lstring_re_create_match(self->match_factory, self_obj, subject);
+    if (!match_owner) return nullptr;
+    
+    MatchObject *match_obj = (MatchObject*)(match_owner.get());
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_obj->matchbuf);
 
     LStrObject *lobj = (LStrObject*)subject;
     bool found = false;
@@ -269,13 +265,11 @@ static PyObject* Pattern_fullmatch(PyObject *self_obj, PyObject *args) {
     PyObject *subject = parse_subject_argument(args, subject_owner, pos, endpos);
     if (!subject) return nullptr;
 
-    cppy::ptr match_owner = lstring_re_create_match(self->match_factory);
-    if (!match_owner) {
-        return nullptr;
-    }
-    MatchObject *match_obj = (MatchObject *)(match_owner.get());
-    auto matchbuf = new LStrMatchBuffer<CharT>(self_obj, subject_owner.get());
-    match_obj->matchbuf = matchbuf;
+    cppy::ptr match_owner = lstring_re_create_match(self->match_factory, self_obj, subject);
+    if (!match_owner) return nullptr;
+    
+    MatchObject *match_obj = (MatchObject*)(match_owner.get());
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_obj->matchbuf);
 
     LStrObject *lobj = (LStrObject*)subject;
     bool found = false;
@@ -439,13 +433,12 @@ static PyObject* Pattern_finditer(PyObject *self_obj, PyObject *args) {
         
         while (boost::regex_search(current, search_end, results, self->buf->re)) {
             // Create a Match object for this result
-            cppy::ptr match_owner = lstring_re_create_match(self->match_factory);
+            cppy::ptr match_owner = lstring_re_create_match(self->match_factory, self_obj, subject);
             if (!match_owner) return nullptr;
             
             MatchObject *match_obj = (MatchObject*)(match_owner.get());
-            auto matchbuf = new LStrMatchBuffer<CharT>(self_obj, subject);
+            auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_obj->matchbuf);
             matchbuf->results = results;
-            match_obj->matchbuf = matchbuf;
             
             if (PyList_Append(result_list.get(), match_owner.get()) < 0) {
                 return nullptr;

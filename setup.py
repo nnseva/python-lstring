@@ -170,7 +170,7 @@ setup(
     version='0.0.1',
     python_requires='>=3.5',
     # build-time requirements are declared in pyproject.toml
-    py_modules=['lstring'],
+    packages=['lstring'],
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExt},
 )
