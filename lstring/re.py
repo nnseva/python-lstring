@@ -16,6 +16,18 @@ class Match(_lstring.re.Match):
     Inherits from _lstring.re.Match to allow Python-level customization.
     """
     
+    # Pre-created escape sequences for expand() method
+    _ESCAPE_MAP = {
+        '\\': L('\\'),
+        'n': L('\n'),
+        't': L('\t'),
+        'r': L('\r'),
+        'a': L('\a'),
+        'b': L('\b'),
+        'f': L('\f'),
+        'v': L('\v'),
+    }
+    
     def __init__(self, pattern, subject):
         """
         Initialize a Match instance.
@@ -87,96 +99,81 @@ class Match(_lstring.re.Match):
             """Generator that yields parts of the expanded template."""
             nonlocal template
             i = 0
-            last_pos = 0
             template_len = len(template)
             
             while i < template_len:
-                if str(template[i]) == '\\':
-                    # Yield text before escape sequence
-                    if i > last_pos:
-                        yield template[last_pos:i]
+                # Find next backslash using efficient findc method
+                backslash_pos = template.findc('\\', i)
+                
+                if backslash_pos == -1:
+                    # No more backslashes, yield remainder and stop
+                    if i < template_len:
+                        yield template[i:]
+                    break
+                
+                # Yield literal text before backslash
+                if backslash_pos > i:
+                    yield template[i:backslash_pos]
+                
+                # Process escape sequence
+                i = backslash_pos + 1
+                
+                if i >= template_len:
+                    raise ValueError(f"bad escape \\ at position {backslash_pos}")
+                
+                c = str(template[i])
+                
+                # Numeric backreference \1, \2, ..., \99
+                if c.isdigit():
+                    group_num = int(c)
+                    # Check for two-digit group number
+                    if i + 1 < template_len and str(template[i + 1]).isdigit():
+                        group_num = group_num * 10 + int(str(template[i + 1]))
+                        i += 1
                     
-                    i += 1
+                    # Get group content (or empty string if not matched)
+                    group_value = self.group(group_num)
+                    if group_value is not None:
+                        yield group_value
+                    else:
+                        yield L('')
+                
+                # Named/numbered group \g<name> or \g<0>
+                elif c == 'g' and i + 1 < template_len and str(template[i + 1]) == '<':
+                    i += 2  # skip 'g<'
+                    start = i
+                    
+                    # Find closing '>'
+                    while i < template_len and str(template[i]) != '>':
+                        i += 1
                     
                     if i >= template_len:
-                        raise ValueError(f"bad escape \\ at position {i-1}")
+                        raise ValueError(f"missing >, unterminated name at position {start - 2}")
                     
-                    c = str(template[i])
+                    name = template[start:i]
+                    name_str = str(name)
                     
-                    # Numeric backreference \1, \2, ..., \99
-                    if c.isdigit():
-                        group_num = int(c)
-                        # Check for two-digit group number
-                        if i + 1 < template_len and str(template[i + 1]).isdigit():
-                            group_num = group_num * 10 + int(str(template[i + 1]))
-                            i += 1
-                        
-                        # Get group content (or empty string if not matched)
+                    # Check if name is a number
+                    if name_str.isdigit():
+                        group_num = int(name_str)
                         group_value = self.group(group_num)
-                        if group_value is not None:
-                            yield group_value
-                        else:
-                            yield L('')
-                    
-                    # Named/numbered group \g<name> or \g<0>
-                    elif c == 'g' and i + 1 < template_len and str(template[i + 1]) == '<':
-                        i += 2  # skip 'g<'
-                        start = i
-                        
-                        # Find closing '>'
-                        while i < template_len and str(template[i]) != '>':
-                            i += 1
-                        
-                        if i >= template_len:
-                            raise ValueError(f"missing >, unterminated name at position {start - 2}")
-                        
-                        name = template[start:i]
-                        name_str = str(name)
-                        
-                        # Check if name is a number
-                        if name_str.isdigit():
-                            group_num = int(name_str)
-                            group_value = self.group(group_num)
-                        else:
-                            # Named group
-                            group_value = self.group(name_str)
-                        
-                        if group_value is not None:
-                            yield group_value
-                        else:
-                            yield L('')
-                    
-                    # Escaped backslash
-                    elif c == '\\':
-                        yield L('\\')
-                    
-                    # Escape sequences
-                    elif c == 'n':
-                        yield L('\n')
-                    elif c == 't':
-                        yield L('\t')
-                    elif c == 'r':
-                        yield L('\r')
-                    elif c == 'a':
-                        yield L('\a')
-                    elif c == 'b':
-                        yield L('\b')
-                    elif c == 'f':
-                        yield L('\f')
-                    elif c == 'v':
-                        yield L('\v')
-                    
                     else:
-                        raise ValueError(f"bad escape \\{c} at position {i-1}")
+                        # Named group
+                        group_value = self.group(name_str)
                     
-                    i += 1
-                    last_pos = i
+                    if group_value is not None:
+                        yield group_value
+                    else:
+                        yield L('')
+                
+                # Check escape sequences in map
+                elif escape_value := Match._ESCAPE_MAP.get(c):
+                    yield escape_value
+                
                 else:
-                    i += 1
-            
-            # Yield remainder of template
-            if last_pos < template_len:
-                yield template[last_pos:]
+                    raise ValueError(f"bad escape \\{c} at position {i-1}")
+                
+                i += 1
         
         # Use join to build balanced tree from generated parts
         return L('').join(generate_parts())
