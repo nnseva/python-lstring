@@ -123,20 +123,61 @@ class Match(_lstring.re.Match):
                 
                 c = str(template[i])
                 
-                # Numeric backreference \1, \2, ..., \99
+                # Numeric backreference or octal escape
+                # Rules from Python re documentation:
+                # - If first digit is 0, OR if there are 3 octal digits: octal escape
+                # - Otherwise: group reference (up to 2 digits, \1 to \99)
                 if c.isdigit():
-                    group_num = int(c)
-                    # Check for two-digit group number
-                    if i + 1 < template_len and str(template[i + 1]).isdigit():
-                        group_num = group_num * 10 + int(str(template[i + 1]))
-                        i += 1
+                    # Check if this is an octal escape (starts with 0 or has 3 digits)
+                    is_octal = False
+                    octal_value = 0
+                    digits_consumed = 0
                     
-                    # Get group content (or empty string if not matched)
-                    group_value = self.group(group_num)
-                    if group_value is not None:
-                        yield group_value
+                    if c == '0':
+                        # Leading zero means octal escape
+                        is_octal = True
+                        # Collect up to 3 octal digits
+                        for j in range(3):
+                            if i + j < template_len:
+                                d = str(template[i + j])
+                                if d in '01234567':
+                                    octal_value = octal_value * 8 + int(d)
+                                    digits_consumed = j + 1
+                                else:
+                                    break
+                            else:
+                                break
+                    elif i + 2 < template_len:
+                        # Check if we have 3 octal digits
+                        d1, d2, d3 = str(template[i]), str(template[i + 1]), str(template[i + 2])
+                        if d1 in '01234567' and d2 in '01234567' and d3 in '01234567':
+                            # All 3 are octal digits - this is octal escape
+                            octal_value = int(d1) * 64 + int(d2) * 8 + int(d3)
+                            if octal_value > 0o377:
+                                raise ValueError(f"octal escape value \\{d1}{d2}{d3} outside of range 0-0o377 at position {backslash_pos}")
+                            is_octal = True
+                            digits_consumed = 3
+                    
+                    if is_octal:
+                        # Emit octal character
+                        if octal_value > 0x10FFFF:
+                            raise ValueError(f"invalid character value at position {backslash_pos}")
+                        yield L(chr(octal_value))
+                        i += digits_consumed - 1
                     else:
-                        yield L('')
+                        # This is a group reference
+                        group_num = int(c)
+                        # Check for two-digit group number
+                        if i + 1 < template_len and str(template[i + 1]).isdigit():
+                            group_num = group_num * 10 + int(str(template[i + 1]))
+                            i += 1
+                        
+                        # Get group content (or empty string if not matched)
+                        group_value = self.group(group_num)
+                        if group_value is not None:
+                            yield group_value
+                        else:
+                            yield L('')
                 
                 # Named/numbered group \g<name> or \g<0>
                 elif c == 'g' and i + 1 < template_len and str(template[i + 1]) == '<':
