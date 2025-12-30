@@ -9,7 +9,7 @@ class TestMatchExpand(unittest.TestCase):
     """Test Match.expand() method with various templates."""
     
     def test_simple_numeric_backreferences(self):
-        """Test basic \1, \2, etc. backreferences."""
+        """Test basic \\1, \\2, etc. backreferences."""
         pattern = lstring.re.compile(r'(\w+) (\w+)')
         match = pattern.match('hello world')
         
@@ -19,7 +19,7 @@ class TestMatchExpand(unittest.TestCase):
         self.assertEqual(str(match.expand(r'\2 \1')), 'world hello')
     
     def test_group_zero(self):
-        """Test \g<0> for entire match."""
+        """Test \\g<0> for entire match."""
         pattern = lstring.re.compile(r'(\w+) (\w+)')
         match = pattern.match('hello world')
         
@@ -29,7 +29,7 @@ class TestMatchExpand(unittest.TestCase):
         self.assertEqual(str(match.expand(r'\g<0>')), 'hello world')
     
     def test_two_digit_backreferences(self):
-        """Test two-digit group numbers \10, \11, etc."""
+        """Test two-digit group numbers \\10, \\11, etc."""
         # Create pattern with 10+ groups
         pattern = lstring.re.compile(r'(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)')
         match = pattern.match('abcdefghijk')
@@ -39,7 +39,7 @@ class TestMatchExpand(unittest.TestCase):
         self.assertEqual(str(match.expand(r'\1\2')), 'ab')  # 1st and 2nd
     
     def test_named_groups(self):
-        """Test \g<name> for named groups."""
+        """Test \\g<name> for named groups."""
         pattern = lstring.re.compile(r'(?<first>\w+) (?<second>\w+)')
         match = pattern.match('hello world')
         
@@ -48,7 +48,7 @@ class TestMatchExpand(unittest.TestCase):
         self.assertEqual(str(match.expand(r'\g<second> \g<first>')), 'world hello')
     
     def test_numbered_groups_with_angle_brackets(self):
-        """Test \g<1>, \g<2> syntax."""
+        """Test \\g<1>, \\g<2> syntax."""
         pattern = lstring.re.compile(r'(\w+) (\w+)')
         match = pattern.match('hello world')
         
@@ -97,13 +97,13 @@ class TestMatchExpand(unittest.TestCase):
         self.assertIn('bad escape', str(cm.exception))
     
     def test_unterminated_group_reference(self):
-        """Test that unterminated \g< raises ValueError."""
+        """Test that unterminated \\g< raises ValueError."""
         pattern = lstring.re.compile(r'(\w+)')
         match = pattern.match('test')
         
         with self.assertRaises(ValueError) as cm:
             match.expand(r'\g<incomplete')
-        self.assertIn('missing >', str(cm.exception))
+        self.assertIn('bad escape \\g at position 0', str(cm.exception))
     
     def test_trailing_backslash(self):
         """Test that trailing backslash raises ValueError."""

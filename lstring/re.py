@@ -27,7 +27,24 @@ class Match(_lstring.re.Match):
         'f': L('\f'),
         'v': L('\v'),
     }
-    
+
+    _ESCAPE_REGEX = None  # Placeholder for compiled regex to detect escapes
+
+    @classmethod
+    def _escape_regex(cls):
+        """Compile regex to detect escape sequences in expand()."""
+        if cls._ESCAPE_REGEX is None:
+            cls._ESCAPE_REGEX = Pattern(
+                r'^\\'
+                r'(?:g<(?<named_or_num>[^>]+)>|'
+                r'(?<octal_lead0>0[0-7]{0,2})|'
+                r'(?<octal_3digit>[0-7]{3})|'
+                r'(?<backref>[1-9][0-9]?)|'
+                r'(?<escape>[ntrabfv\\])|'
+                r'(?<invalid>.))'  # Исправлено: было (<invalid>.)
+            )
+        return cls._ESCAPE_REGEX
+
     def __init__(self, pattern, subject):
         """
         Initialize a Match instance.
@@ -114,107 +131,50 @@ class Match(_lstring.re.Match):
                 # Yield literal text before backslash
                 if backslash_pos > i:
                     yield template[i:backslash_pos]
-                
                 # Process escape sequence
-                i = backslash_pos + 1
-                
-                if i >= template_len:
+                m = self._escape_regex().match(template, backslash_pos)
+                if not m:
                     raise ValueError(f"bad escape \\ at position {backslash_pos}")
-                
-                c = str(template[i])
-                
-                # Numeric backreference or octal escape
-                # Rules from Python re documentation:
-                # - If first digit is 0, OR if there are 3 octal digits: octal escape
-                # - Otherwise: group reference (up to 2 digits, \1 to \99)
-                if c.isdigit():
-                    # Check if this is an octal escape (starts with 0 or has 3 digits)
-                    is_octal = False
-                    octal_value = 0
-                    digits_consumed = 0
-                    
-                    if c == '0':
-                        # Leading zero means octal escape
-                        is_octal = True
-                        # Collect up to 3 octal digits
-                        for j in range(3):
-                            if i + j < template_len:
-                                d = str(template[i + j])
-                                if d in '01234567':
-                                    octal_value = octal_value * 8 + int(d)
-                                    digits_consumed = j + 1
-                                else:
-                                    break
-                            else:
-                                break
-                    elif i + 2 < template_len:
-                        # Check if we have 3 octal digits
-                        d1, d2, d3 = str(template[i]), str(template[i + 1]), str(template[i + 2])
-                        if d1 in '01234567' and d2 in '01234567' and d3 in '01234567':
-                            # All 3 are octal digits - this is octal escape
-                            octal_value = int(d1) * 64 + int(d2) * 8 + int(d3)
-                            if octal_value > 0o377:
-                                raise ValueError(f"octal escape value \\{d1}{d2}{d3} outside of range 0-0o377 at position {backslash_pos}")
-                            is_octal = True
-                            digits_consumed = 3
-                    
-                    if is_octal:
-                        # Emit octal character
-                        if octal_value > 0x10FFFF:
-                            raise ValueError(f"invalid character value at position {backslash_pos}")
-                        yield L(chr(octal_value))
-                        i += digits_consumed - 1
-                    else:
-                        # This is a group reference
-                        group_num = int(c)
-                        # Check for two-digit group number
-                        if i + 1 < template_len and str(template[i + 1]).isdigit():
-                            group_num = group_num * 10 + int(str(template[i + 1]))
-                            i += 1
-                        
-                        # Get group content (or empty string if not matched)
-                        group_value = self.group(group_num)
-                        if group_value is not None:
-                            yield group_value
-                        else:
-                            yield L('')
-                
-                # Named/numbered group \g<name> or \g<0>
-                elif c == 'g' and i + 1 < template_len and str(template[i + 1]) == '<':
-                    i += 2  # skip 'g<'
-                    start = i
-                    
-                    # Find closing '>'
-                    while i < template_len and str(template[i]) != '>':
-                        i += 1
-                    
-                    if i >= template_len:
-                        raise ValueError(f"missing >, unterminated name at position {start - 2}")
-                    
-                    name = template[start:i]
-                    name_str = str(name)
-                    
-                    # Check if name is a number
-                    if name_str.isdigit():
-                        group_num = int(name_str)
-                        group_value = self.group(group_num)
-                    else:
-                        # Named group
-                        group_value = self.group(name_str)
-                    
+                if m.group('invalid') is not None:
+                    raise ValueError(f"bad escape \\{str(m.group('invalid'))} at position {backslash_pos}")
+                if m.group('backref') is not None:
+                    group_num = int(str(m.group('backref')))
+                    group_value = self.group(group_num)
                     if group_value is not None:
                         yield group_value
                     else:
                         yield L('')
-                
-                # Check escape sequences in map
-                elif escape_value := Match._ESCAPE_MAP.get(c):
-                    yield escape_value
-                
+                elif m.group('named_or_num') is not None:
+                    name = str(m.group('named_or_num'))
+                    if name.isdigit():
+                        group_num = int(name)
+                        group_value = self.group(group_num)
+                    else:
+                        group_value = self.group(name)
+                    if group_value is not None:
+                        yield group_value
+                    else:
+                        yield L('')
+                elif m.group('octal_lead0') is not None:
+                    octal_str = str(m.group('octal_lead0'))
+                    octal_value = int(octal_str, 8)
+                    if octal_value > 0x10FFFF:
+                        raise ValueError(f"invalid character value at position {backslash_pos}")
+                    yield L(chr(octal_value))
+                elif m.group('octal_3digit') is not None:
+                    octal_str = str(m.group('octal_3digit'))
+                    octal_value = int(octal_str, 8)
+                    if octal_value > 0o377:
+                        raise ValueError(f"octal escape value \\{octal_str} outside of range 0-0o377 at position {backslash_pos}")
+                    yield L(chr(octal_value))
+                elif m.group('escape') is not None:
+                    c = str(m.group('escape'))
+                    yield self._ESCAPE_MAP[c]
                 else:
-                    raise ValueError(f"bad escape \\{c} at position {i-1}")
-                
-                i += 1
+                    # should not reach here
+                    raise ValueError(f"bad escape \\ at position {backslash_pos}")
+                # Advance index past the matched escape sequence
+                i = m.end()
         
         # Use join to build balanced tree from generated parts
         return L('').join(generate_parts())
