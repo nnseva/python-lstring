@@ -41,7 +41,7 @@ class Match(_lstring.re.Match):
                 r'(?<octal_3digit>[0-7]{3})|'
                 r'(?<backref>[1-9][0-9]?)|'
                 r'(?<escape>[ntrabfv\\])|'
-                r'(?<invalid>.))'  # Исправлено: было (<invalid>.)
+                r'(?<invalid>.))'
             )
         return cls._ESCAPE_REGEX
 
@@ -158,8 +158,6 @@ class Match(_lstring.re.Match):
                 elif m.group('octal_lead0') is not None:
                     octal_str = str(m.group('octal_lead0'))
                     octal_value = int(octal_str, 8)
-                    if octal_value > 0x10FFFF:
-                        raise ValueError(f"invalid character value at position {backslash_pos}")
                     yield L(chr(octal_value))
                 elif m.group('octal_3digit') is not None:
                     octal_str = str(m.group('octal_3digit'))
@@ -324,6 +322,88 @@ class Pattern(_lstring.re.Pattern):
         result.append(string[pos:])
         
         return result
+    
+    def sub(self, repl, string, count=0):
+        """Return the string obtained by replacing occurrences of the pattern.
+        
+        Args:
+            repl: Replacement string (str or L) or callable that takes Match object
+            string: String to search in (str or L)
+            count: Maximum number of replacements (0 = unlimited)
+            
+        Returns:
+            lstring.L: String with replacements applied
+        """
+        if isinstance(string, str):
+            string = L(string)
+        
+        # Use subn and discard the count
+        return self.subn(repl, string, count)[0]
+    
+    def subn(self, repl, string, count=0):
+        """Return a 2-tuple (new_string, number_of_substitutions).
+        
+        Args:
+            repl: Replacement string (str or L) or callable that takes Match object
+            string: String to search in (str or L)
+            count: Maximum number of replacements (0 = unlimited)
+            
+        Returns:
+            tuple: (lstring.L with replacements, number of substitutions made)
+        """
+        if isinstance(string, str):
+            string = L(string)
+        
+        # Prepare replacement function
+        if isinstance(repl, (str, type(L('')))):
+            # String replacement: convert to L and use expand()
+            if isinstance(repl, str):
+                repl = L(repl)
+            replacement_func = lambda m: m.expand(repl)
+        else:
+            # Callable replacement: use as is
+            replacement_func = repl
+        
+        def generate_parts():
+            """Generator that yields parts of the result string."""
+            nonlocal n_subs
+            pos = 0
+            n_subs = 0
+            
+            while count == 0 or n_subs < count:
+                m = self.search(string, pos)
+                if m is None:
+                    break
+                
+                # Yield literal text before match
+                if m.start() > pos:
+                    yield string[pos:m.start()]
+                
+                # Yield replacement
+                yield replacement_func(m)
+                
+                # Move position forward
+                new_pos = m.end()
+                # Handle empty matches by advancing at least one position
+                if new_pos == pos:
+                    # Empty match - include the character at pos and advance
+                    if pos < len(string):
+                        yield string[pos:pos + 1]
+                        pos += 1
+                    else:
+                        break
+                else:
+                    pos = new_pos
+                
+                n_subs += 1
+            
+            # Yield remaining text
+            if pos < len(string):
+                yield string[pos:]
+        
+        n_subs = 0
+        result = L('').join(generate_parts())
+        return (result, n_subs)
 
 
 # Re-export module-level functions from _lstring.re

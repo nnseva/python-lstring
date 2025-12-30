@@ -266,24 +266,10 @@ static PyObject* Pattern_fullmatch(PyObject *self_obj, PyObject *args) {
     return match_owner.release();
 }
 
-// Stub: Pattern.sub(repl, subject, count=0)
-static PyObject* Pattern_sub(PyObject *self_obj, PyObject *args) {
-    PyErr_SetString(PyExc_NotImplementedError, "Pattern.sub() not implemented yet");
-    return nullptr;
-}
-
-// Stub: Pattern.subn(repl, subject, count=0)
-static PyObject* Pattern_subn(PyObject *self_obj, PyObject *args) {
-    PyErr_SetString(PyExc_NotImplementedError, "Pattern.subn() not implemented yet");
-    return nullptr;
-}
-
 PyMethodDef Pattern_methods[] = {
     {"match", (PyCFunction)Pattern_match, METH_VARARGS, "Pattern.match(subject[, pos[, endpos]]) -> Match or None."},
     {"fullmatch", (PyCFunction)Pattern_fullmatch, METH_VARARGS, "Pattern.fullmatch(subject[, pos[, endpos]]) -> Match or None."},
     {"search", (PyCFunction)Pattern_search, METH_VARARGS, "Pattern.search(subject[, pos[, endpos]]) -> Match or None."},
-    {"sub", (PyCFunction)Pattern_sub, METH_VARARGS, "Pattern.sub(repl, subject[, count]) -> str (stub)."},
-    {"subn", (PyCFunction)Pattern_subn, METH_VARARGS, "Pattern.subn(repl, subject[, count]) -> (str, n) (stub)."},
     {nullptr, nullptr, 0, nullptr}
 };
 
