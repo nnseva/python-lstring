@@ -16,7 +16,10 @@ def dyn(s: str) -> str:
     Using join creates a new string object at runtime and avoids interned
     literal behavior.
     """
-    return "".join(s)
+    r = "".join(s)
+    if sys.getrefcount(r) > 2:
+        raise RuntimeError("Failed to create dynamic string")
+    return r
 
 class TestLStrRefCounts(unittest.TestCase):
     """Reference-counting tests covering L operations.
