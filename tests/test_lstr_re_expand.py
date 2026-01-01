@@ -10,7 +10,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_simple_numeric_backreferences(self):
         """Test basic \\1, \\2, etc. backreferences."""
-        pattern = lstring.re.compile(r'(\w+) (\w+)')
+        pattern = lstring.re.compile(r'(\w+) (\w+)', compatible=False)
         match = pattern.match('hello world')
         
         self.assertEqual(str(match.expand(r'\1')), 'hello')
@@ -20,7 +20,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_group_zero(self):
         """Test \\g<0> for entire match."""
-        pattern = lstring.re.compile(r'(\w+) (\w+)')
+        pattern = lstring.re.compile(r'(\w+) (\w+)', compatible=False)
         match = pattern.match('hello world')
         
         # \0 is octal NUL character, not group 0
@@ -31,7 +31,7 @@ class TestMatchExpand(unittest.TestCase):
     def test_two_digit_backreferences(self):
         """Test two-digit group numbers \\10, \\11, etc."""
         # Create pattern with 10+ groups
-        pattern = lstring.re.compile(r'(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)')
+        pattern = lstring.re.compile(r'(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)', compatible=False)
         match = pattern.match('abcdefghijk')
         
         self.assertEqual(str(match.expand(r'\10')), 'j')  # 10th group
@@ -40,7 +40,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_named_groups(self):
         """Test \\g<name> for named groups."""
-        pattern = lstring.re.compile(r'(?<first>\w+) (?<second>\w+)')
+        pattern = lstring.re.compile(r'(?<first>\w+) (?<second>\w+)', compatible=False)
         match = pattern.match('hello world')
         
         self.assertEqual(str(match.expand(r'\g<first>')), 'hello')
@@ -49,7 +49,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_numbered_groups_with_angle_brackets(self):
         """Test \\g<1>, \\g<2> syntax."""
-        pattern = lstring.re.compile(r'(\w+) (\w+)')
+        pattern = lstring.re.compile(r'(\w+) (\w+)', compatible=False)
         match = pattern.match('hello world')
         
         self.assertEqual(str(match.expand(r'\g<1>')), 'hello')
@@ -57,7 +57,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_escape_sequences(self):
         """Test escape sequences like \\n, \\t, \\\\, etc."""
-        pattern = lstring.re.compile(r'(\w+)')
+        pattern = lstring.re.compile(r'(\w+)', compatible=False)
         match = pattern.match('test')
         
         self.assertEqual(str(match.expand(r'\1\n')), 'test\n')
@@ -71,7 +71,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_literal_text(self):
         """Test that literal text is preserved."""
-        pattern = lstring.re.compile(r'(\w+)')
+        pattern = lstring.re.compile(r'(\w+)', compatible=False)
         match = pattern.match('test')
         
         self.assertEqual(str(match.expand(r'prefix-\1-suffix')), 'prefix-test-suffix')
@@ -79,7 +79,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_optional_groups_not_matched(self):
         """Test groups that didn't match (should be replaced with empty string)."""
-        pattern = lstring.re.compile(r'(\w+)(\s+)?(\w+)?')
+        pattern = lstring.re.compile(r'(\w+)(\s+)?(\w+)?', compatible=False)
         match = pattern.match('hello')
         
         # Group 1 matched, groups 2 and 3 didn't
@@ -89,7 +89,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_bad_escape_error(self):
         """Test that bad escape sequences raise ValueError."""
-        pattern = lstring.re.compile(r'(\w+)')
+        pattern = lstring.re.compile(r'(\w+)', compatible=False)
         match = pattern.match('test')
         
         with self.assertRaises(ValueError) as cm:
@@ -98,7 +98,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_unterminated_group_reference(self):
         """Test that unterminated \\g< raises ValueError."""
-        pattern = lstring.re.compile(r'(\w+)')
+        pattern = lstring.re.compile(r'(\w+)', compatible=False)
         match = pattern.match('test')
         
         with self.assertRaises(ValueError) as cm:
@@ -107,7 +107,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_trailing_backslash(self):
         """Test that trailing backslash raises ValueError."""
-        pattern = lstring.re.compile(r'(\w+)')
+        pattern = lstring.re.compile(r'(\w+)', compatible=False)
         match = pattern.match('test')
         
         with self.assertRaises(ValueError) as cm:
@@ -118,7 +118,7 @@ class TestMatchExpand(unittest.TestCase):
         """Test that expand() works with lstring.L templates."""
         from lstring import L
         
-        pattern = lstring.re.compile(r'(\w+) (\w+)')
+        pattern = lstring.re.compile(r'(\w+) (\w+)', compatible=False)
         match = pattern.match('hello world')
         
         # Pass L() instead of str
@@ -127,7 +127,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_complex_template(self):
         """Test a complex template with multiple features."""
-        pattern = lstring.re.compile(r'(?<name>\w+)@(?<domain>\w+)\.(?<tld>\w+)')
+        pattern = lstring.re.compile(r'(?<name>\w+)@(?<domain>\w+)\.(?<tld>\w+)', compatible=False)
         match = pattern.match('user@example.com')
         
         # Use \g<0> for entire match (\0 is octal NUL)
@@ -139,7 +139,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_empty_template(self):
         """Test expand with empty template."""
-        pattern = lstring.re.compile(r'(\w+)')
+        pattern = lstring.re.compile(r'(\w+)', compatible=False)
         match = pattern.match('test')
         
         result = match.expand('')
@@ -147,7 +147,7 @@ class TestMatchExpand(unittest.TestCase):
     
     def test_no_groups_template(self):
         """Test template with no backreferences."""
-        pattern = lstring.re.compile(r'(\w+)')
+        pattern = lstring.re.compile(r'(\w+)', compatible=False)
         match = pattern.match('test')
         
         result = match.expand('literal')
@@ -155,7 +155,7 @@ class TestMatchExpand(unittest.TestCase):
 
     def test_octal_escapes(self):
         """Test octal escape sequences (leading 0 or 3 digits)."""
-        pattern = lstring.re.compile(r'(\w)(\w)(\w)')
+        pattern = lstring.re.compile(r'(\w)(\w)(\w)', compatible=False)
         match = pattern.match('abc')
         
         # \0, \00, \000 - all are octal NUL
@@ -197,7 +197,7 @@ class TestMatchExpand(unittest.TestCase):
 
     def test_backref_vs_octal(self):
         """Test distinction between backreferences and octal escapes."""
-        pattern = lstring.re.compile(r'(\w)(\w)(\w)(\w)(\w)')
+        pattern = lstring.re.compile(r'(\w)(\w)(\w)(\w)(\w)', compatible=False)
         match = pattern.match('abcde')
         
         # \1 through \5 - backreferences to groups
@@ -220,7 +220,7 @@ class TestMatchExpand(unittest.TestCase):
 
     def test_two_digit_backref(self):
         """Test two-digit backreferences (groups 10-99)."""
-        pattern = lstring.re.compile(r'(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)')
+        pattern = lstring.re.compile(r'(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)(\w)', compatible=False)
         match = pattern.match('abcdefghijk')
         
         # \10, \11 - backreferences to groups 10 and 11
@@ -239,7 +239,7 @@ class TestMatchExpand(unittest.TestCase):
 
     def test_invalid_octal(self):
         """Test that octal values > 0o377 raise error."""
-        pattern = lstring.re.compile(r'test')
+        pattern = lstring.re.compile(r'test', compatible=False)
         match = pattern.match('test')
         
         # \400 is outside octal range
@@ -250,7 +250,7 @@ class TestMatchExpand(unittest.TestCase):
 
     def test_mixed_backrefs_and_octals(self):
         """Test combination of backreferences and octal escapes."""
-        pattern = lstring.re.compile(r'(\w+)\s+(\w+)')
+        pattern = lstring.re.compile(r'(\w+)\s+(\w+)', compatible=False)
         match = pattern.match('hello world')
         
         # Mix backrefs and octals

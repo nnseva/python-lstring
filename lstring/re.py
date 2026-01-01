@@ -41,7 +41,8 @@ class Match(_lstring.re.Match):
                 r'(?<octal_3digit>[0-7]{3})|'
                 r'(?<backref>[1-9][0-9]?)|'
                 r'(?<escape>[ntrabfv\\])|'
-                r'(?<invalid>.))'
+                r'(?<invalid>.))',
+                compatible=False
             )
         return cls._ESCAPE_REGEX
 
@@ -186,7 +187,71 @@ class Pattern(_lstring.re.Pattern):
     maintaining C++ performance for pattern matching operations.
     """
     
-    def __init__(self, pattern, flags=0, Match=None):
+    @staticmethod
+    def _convert_python_to_boost(pattern):
+        """Convert Python re pattern syntax to Boost regex syntax.
+        
+        Converts:
+        - (?P<name>...) to (?<name>...)  (named groups)
+        - (?P=name) to \k<name>  (named backreferences)
+        
+        Args:
+            pattern: Pattern string (lstring.L) with Python re syntax
+            
+        Returns:
+            lstring.L: Pattern converted to Boost regex syntax
+        """
+        def generate_parts():
+            """Generator that yields parts of the converted pattern."""
+            i = 0
+            pattern_len = len(pattern)
+            prefix = L('(?P')
+            
+            while i < pattern_len:
+                # Find next occurrence of (?P
+                pos = pattern.find(prefix, i)
+                
+                if pos == -1:
+                    # No more Python syntax, yield remainder
+                    if i < pattern_len:
+                        yield pattern[i:]
+                    break
+                
+                # Yield literal text before prefix
+                if pos > i:
+                    yield pattern[i:pos]
+                
+                # Check character after prefix
+                if pos + 3 < pattern_len:
+                    next_char = pattern[pos + 3]
+                    if next_char == '<':
+                        # (?P<name>...) -> (?<name>...)
+                        # Just skip the 'P' character
+                        yield pattern[pos:pos + 2]  # '(?'
+                        i = pos + 3  # Skip '(?P'
+                        continue
+                    elif next_char == '=':
+                        # (?P=name) -> \k<name>
+                        # Find the closing )
+                        j = pos + 4
+                        while j < pattern_len and pattern[j] != ')':
+                            j += 1
+                        if j < pattern_len:
+                            # Extract name
+                            name = pattern[pos + 4:j]
+                            yield L('\\k<')
+                            yield name
+                            yield L('>')
+                            i = j + 1  # Skip past ')'
+                            continue
+                
+                # Not a recognized pattern, copy prefix as-is
+                yield pattern[pos:pos + 3]
+                i = pos + 3
+        
+        return L('').join(generate_parts())
+    
+    def __init__(self, pattern, flags=0, Match=None, compatible=True):
         """
         Initialize a Pattern instance.
         
@@ -194,6 +259,7 @@ class Pattern(_lstring.re.Pattern):
             pattern: Pattern string (str or lstring.L)
             flags: Optional regex flags (int, defaults to 0)
             Match: Optional Match class factory (defaults to lstring.re.Match)
+            compatible: If True, convert Python re syntax to Boost syntax (default: True)
         """
         # Convert str to lstring.L if needed
         if isinstance(pattern, str):
@@ -201,6 +267,10 @@ class Pattern(_lstring.re.Pattern):
         
         if Match is None:
             Match = globals()['Match']  # Use lstring.re.Match by default
+        
+        # Convert Python syntax to Boost syntax if needed
+        if compatible:
+            pattern = self._convert_python_to_boost(pattern)
         
         # Call C++ __init__
         super().__init__(pattern, flags, Match)
@@ -407,7 +477,7 @@ class Pattern(_lstring.re.Pattern):
 
 
 # Re-export module-level functions from _lstring.re
-def compile(pattern, flags=0, Match=None):
+def compile(pattern, flags=0, Match=None, compatible=True):
     """
     Compile a regular expression pattern.
     
@@ -423,8 +493,7 @@ def compile(pattern, flags=0, Match=None):
         Match = globals()['Match']  # Use lstring.re.Match by default
     
     # Create Pattern using lstring.re.Pattern which will use the custom Match
-    pattern_cls = globals()['Pattern']
-    return pattern_cls(pattern, flags, Match=Match)
+    return Pattern(pattern, flags, Match=Match, compatible=compatible)
 
 
 def match(pattern, string, flags=0):

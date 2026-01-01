@@ -251,7 +251,7 @@ class TestLStrRe(unittest.TestCase):
 
     def test_module_compile(self):
         # Test lstring.re.compile function
-        p = lstring.re.compile(r'\d+')
+        p = lstring.re.compile(r'\d+', compatible=False)
         self.assertIsInstance(p, type(lstring.re.Pattern(r'test')))
         
         m = p.match('123abc')

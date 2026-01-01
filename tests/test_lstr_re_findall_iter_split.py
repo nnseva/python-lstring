@@ -7,7 +7,7 @@ import unittest
 class TestFindallFinditerSplit(unittest.TestCase):
     def test_findall_no_groups(self):
         """findall with no capturing groups returns full matches"""
-        pat = lstring.re.Pattern(lstring.L(r'\d+'))
+        pat = lstring.re.Pattern(lstring.L(r'\d+'), compatible=False)
         result = pat.findall(lstring.L('a123b456c789'))
         self.assertEqual(len(result), 3)
         self.assertEqual(str(result[0]), '123')
@@ -16,7 +16,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_findall_one_group(self):
         """findall with one capturing group returns group values"""
-        pat = lstring.re.Pattern(lstring.L(r'(\d+)'))
+        pat = lstring.re.Pattern(lstring.L(r'(\d+)'), compatible=False)
         result = pat.findall(lstring.L('a123b456c789'))
         self.assertEqual(len(result), 3)
         self.assertEqual(str(result[0]), '123')
@@ -25,7 +25,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_findall_multiple_groups(self):
         """findall with multiple capturing groups returns tuples"""
-        pat = lstring.re.Pattern(lstring.L(r'(\w+)=(\d+)'))
+        pat = lstring.re.Pattern(lstring.L(r'(\w+)=(\d+)'), compatible=False)
         result = pat.findall(lstring.L('a=1, b=2, c=3'))
         self.assertEqual(len(result), 3)
         self.assertIsInstance(result[0], tuple)
@@ -39,14 +39,14 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_findall_empty_matches(self):
         """findall handles empty matches correctly"""
-        pat = lstring.re.Pattern(lstring.L(r'\d*'))
+        pat = lstring.re.Pattern(lstring.L(r'\d*'), compatible=False)
         result = pat.findall(lstring.L('a1b2c'))
         # Should find: '', '1', '', '2', '', ''
         self.assertGreaterEqual(len(result), 3)
 
     def test_findall_with_str(self):
         """findall accepts str argument"""
-        pat = lstring.re.Pattern(lstring.L(r'\d+'))
+        pat = lstring.re.Pattern(lstring.L(r'\d+'), compatible=False)
         result = pat.findall('a123b456')
         self.assertEqual(len(result), 2)
         self.assertEqual(str(result[0]), '123')
@@ -54,7 +54,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_finditer_basic(self):
         """finditer returns iterator of Match objects"""
-        pat = lstring.re.Pattern(lstring.L(r'\d+'))
+        pat = lstring.re.Pattern(lstring.L(r'\d+'), compatible=False)
         result = list(pat.finditer(lstring.L('a123b456c789')))
         self.assertEqual(len(result), 3)
         
@@ -75,7 +75,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_finditer_with_groups(self):
         """finditer works with capturing groups"""
-        pat = lstring.re.Pattern(lstring.L(r'(?<name>\w+)=(?<value>\d+)'))
+        pat = lstring.re.Pattern(lstring.L(r'(?<name>\w+)=(?<value>\d+)'), compatible=False)
         result = list(pat.finditer(lstring.L('a=1, b=2')))
         self.assertEqual(len(result), 2)
         
@@ -89,7 +89,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_split_basic(self):
         """split splits string by pattern"""
-        pat = lstring.re.Pattern(lstring.L(r',\s*'))
+        pat = lstring.re.Pattern(lstring.L(r',\s*'), compatible=False)
         result = pat.split(lstring.L('a, b, c, d'))
         self.assertEqual(len(result), 4)
         self.assertEqual(str(result[0]), 'a')
@@ -99,7 +99,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_split_with_groups(self):
         """split includes capturing groups in result"""
-        pat = lstring.re.Pattern(lstring.L(r'([,;])'))
+        pat = lstring.re.Pattern(lstring.L(r'([,;])'), compatible=False)
         result = pat.split(lstring.L('a,b;c'))
         self.assertEqual(len(result), 5)
         self.assertEqual(str(result[0]), 'a')
@@ -110,7 +110,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_split_maxsplit(self):
         """split respects maxsplit parameter"""
-        pat = lstring.re.Pattern(lstring.L(r','))
+        pat = lstring.re.Pattern(lstring.L(r','), compatible=False)
         result = pat.split(lstring.L('a,b,c,d'), 2)
         self.assertEqual(len(result), 3)
         self.assertEqual(str(result[0]), 'a')
@@ -119,14 +119,14 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_split_no_match(self):
         """split returns original string if no match"""
-        pat = lstring.re.Pattern(lstring.L(r'xyz'))
+        pat = lstring.re.Pattern(lstring.L(r'xyz'), compatible=False)
         result = pat.split(lstring.L('abc'))
         self.assertEqual(len(result), 1)
         self.assertEqual(str(result[0]), 'abc')
 
     def test_split_empty_parts(self):
         """split handles empty parts correctly"""
-        pat = lstring.re.Pattern(lstring.L(r','))
+        pat = lstring.re.Pattern(lstring.L(r','), compatible=False)
         result = pat.split(lstring.L(',a,,b,'))
         self.assertEqual(len(result), 5)
         self.assertEqual(str(result[0]), '')
@@ -137,7 +137,7 @@ class TestFindallFinditerSplit(unittest.TestCase):
 
     def test_split_with_str(self):
         """split accepts str argument"""
-        pat = lstring.re.Pattern(lstring.L(r','))
+        pat = lstring.re.Pattern(lstring.L(r','), compatible=False)
         result = pat.split('a,b,c')
         self.assertEqual(len(result), 3)
         self.assertEqual(str(result[0]), 'a')
