@@ -229,8 +229,7 @@ Match_groups(PyObject *self_obj, PyObject *args) {
         PyObject *group_value;
         
         if (!buf->results[group_index].matched) {
-            group_value = default_value;
-            Py_INCREF(default_value);
+            group_value = cppy::incref(default_value);
         } else {
             Py_ssize_t start = begin_iter.distance_to(buf->results[group_index].first);
             Py_ssize_t end = begin_iter.distance_to(buf->results[group_index].second);
@@ -524,13 +523,13 @@ static PyObject* Match_repr(PyObject *self_obj) {
         if (!lstr_type_ptr) return nullptr;
         PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
         
-        LStrObject *match_lobj = (LStrObject*)PyType_GenericAlloc(lstr_type, 0);
+        cppy::ptr match_lobj((PyObject*)PyType_GenericAlloc(lstr_type, 0));
         if (!match_lobj) return nullptr;
-        match_lobj->buffer = new Slice1Buffer(buf->where.get(), start_pos, end_pos);
+        LStrObject *match_lobj_raw = reinterpret_cast<LStrObject*>(match_lobj.get());
+        match_lobj_raw->buffer = new Slice1Buffer(buf->where.get(), start_pos, end_pos);
         
         // Convert to Python str for display
-        cppy::ptr match_str(PyObject_Str((PyObject*)match_lobj));
-        Py_DECREF(match_lobj);
+        cppy::ptr match_str(PyObject_Str(match_lobj.get()));
         if (!match_str) return nullptr;
         
         // Format: <re.Match object; span=(start, end), match='...'>

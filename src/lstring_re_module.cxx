@@ -308,13 +308,15 @@ int lstring_re_mod_exec(PyObject *parent_module, const char *submodule_name) {
         }
     }
     
-    // Add the submodule to the parent module as attribute 're'
-    if (PyModule_AddObject(parent_module, submodule_name, Py_NewRef(submodule.get())) < 0) {
+    // Optionally add a convenience attribute BEFORE transferring ownership
+    if (PyModule_AddStringConstant(submodule.get(), "__doc__", "Regex helpers for lstring.L") < 0) {
         return -1;
     }
-
-    // Optionally add a convenience attribute
-    if (PyModule_AddStringConstant(submodule.get(), "__doc__", "Regex helpers for lstring.L") < 0) {
+    
+    // Add the submodule to the parent module as attribute 're'
+    // PyModule_AddObject steals a reference on success, but PyDict_SetItemString
+    // already incremented refcount, so cppy::ptr's DECREF on scope exit balances it
+    if (PyModule_AddObject(parent_module, submodule_name, submodule.get()) < 0) {
         return -1;
     }
 

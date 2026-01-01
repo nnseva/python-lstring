@@ -135,5 +135,5 @@ PyObject* get_string_lstr_type() {
     cppy::ptr LType( PyObject_GetAttrString(mod.get(), "L") );
     if (!LType) return nullptr;
     // return a new reference
-    return Py_NewRef(LType.get());
+    return LType.release();
 }
