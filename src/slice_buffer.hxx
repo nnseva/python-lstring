@@ -127,8 +127,7 @@ public:
     PyObject* repr() const override {
         cppy::ptr inner( lstr_obj->buffer->repr() );
         if (!inner) return nullptr;
-        PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd]", inner.get(), start_index, end_index);
-        return result;
+        return PyUnicode_FromFormat("%U[%zd:%zd]", inner.get(), start_index, end_index);
     }
     
     Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
@@ -259,8 +258,7 @@ public:
     PyObject* repr() const override {
         cppy::ptr inner( lstr_obj->buffer->repr() );
         if (!inner) return nullptr;
-        PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd:%ld]", inner.get(), start_index, end_index, step);
-        return result;
+        return PyUnicode_FromFormat("%U[%zd:%zd:%ld]", inner.get(), start_index, end_index, step);
     }
 
     Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {

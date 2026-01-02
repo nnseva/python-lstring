@@ -168,8 +168,7 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
             PyErr_SetString(PyExc_IndexError, "L index out of range");
             return nullptr;
         }
-        uint32_t ch = self->buffer->value(index);
-        return PyUnicode_FromOrdinal(ch);
+        return PyUnicode_FromOrdinal(self->buffer->value(index));
     }
 
     if (!PySlice_Check(key)) {

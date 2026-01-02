@@ -77,7 +77,7 @@ int Pattern_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
     }
     
     // Store owned reference to match factory
-    self->match_factory = (PyObject*)cppy::incref(match_factory);
+    self->match_factory = cppy::incref(match_factory);
 
     return 0;
 }
@@ -116,8 +116,7 @@ static tptr<LStrObject> parse_subject_argument(PyObject *args, Py_ssize_t &pos, 
     }
 
     // Parse endpos parameter (default: length of subject)
-    LStrObject *lobj = subject_owner.get();
-    Py_ssize_t subject_len = lobj->buffer->length();
+    Py_ssize_t subject_len = subject_owner->buffer->length();
     endpos = subject_len;
     if (endpos_obj && endpos_obj != Py_None) {
         endpos = PyLong_AsSsize_t(endpos_obj);
@@ -142,10 +141,7 @@ tptr<MatchObject> lstring_re_create_match(PyObject *match_factory, PyObject *pat
     cppy::ptr args(Py_BuildValue("(OO)", pattern, subject));
     if (!args) return tptr<MatchObject>();
     
-    cppy::ptr obj = PyObject_CallObject(match_factory, args.get());
-    if (!obj) return tptr<MatchObject>();
-    
-    return tptr<MatchObject>((MatchObject*)obj.release());
+    return PyObject_CallObject(match_factory, args.get());
 }
 
 
@@ -166,9 +162,9 @@ static PyObject* Pattern_match(PyObject *self_obj, PyObject *args) {
     
     auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
 
-    LStrObject *lobj = subject_owner.get();
     bool found = false;
     try {
+        LStrObject *lobj = subject_owner.get();
         LStrIteratorBuffer<CharT> begin(lobj, pos);
         LStrIteratorBuffer<CharT> end(lobj, endpos);
         found = boost::regex_search(begin, end, matchbuf->results, self->buf->re, boost::match_continuous);
@@ -201,9 +197,9 @@ static PyObject* Pattern_search(PyObject *self_obj, PyObject *args) {
     
     auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
 
-    LStrObject *lobj = subject_owner.get();
     bool found = false;
     try {
+        LStrObject *lobj = subject_owner.get();
         LStrIteratorBuffer<CharT> begin(lobj, pos);
         LStrIteratorBuffer<CharT> end(lobj, endpos);
         found = boost::regex_search(begin, end, matchbuf->results, self->buf->re);
@@ -236,9 +232,9 @@ static PyObject* Pattern_fullmatch(PyObject *self_obj, PyObject *args) {
     
     auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
 
-    LStrObject *lobj = subject_owner.get();
     bool found = false;
     try {
+        LStrObject *lobj = subject_owner.get();
         LStrIteratorBuffer<CharT> begin(lobj, pos);
         LStrIteratorBuffer<CharT> end(lobj, endpos);
         found = boost::regex_match(begin, end, matchbuf->results, self->buf->re);

@@ -146,8 +146,7 @@ public:
         tptr<LStrObject> lrepr( left_obj->buffer->repr() );
         tptr<LStrObject> rrepr( right_obj->buffer->repr() );
         if (!lrepr || !rrepr) return nullptr;
-        PyObject *result = PyUnicode_FromFormat("(%U + %U)", lrepr.ptr().get(), rrepr.ptr().get());
-        return result;
+        return PyUnicode_FromFormat("(%U + %U)", lrepr.ptr().get(), rrepr.ptr().get());
     }
 
     /*

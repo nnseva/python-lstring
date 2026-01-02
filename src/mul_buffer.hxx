@@ -112,8 +112,7 @@ public:
     PyObject* repr() const override {
         cppy::ptr lrepr( lstr_obj->buffer->repr() );
         if (!lrepr) return nullptr;
-        PyObject *result = PyUnicode_FromFormat("(%U * %zd)", lrepr.get(), repeat_count);
-        return result;
+        return PyUnicode_FromFormat("(%U * %zd)", lrepr.get(), repeat_count);
     }
 
     Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {

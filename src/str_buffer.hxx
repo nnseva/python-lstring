@@ -98,8 +98,7 @@ public:
     PyObject* repr() const override {
         cppy::ptr repr_obj( py_str.repr() );
         if (!repr_obj) return nullptr;
-        PyObject *result = PyUnicode_FromFormat("L%U", repr_obj.get());
-        return result;
+        return PyUnicode_FromFormat("L%U", repr_obj.get());
     }
 
     /**
@@ -126,8 +125,7 @@ public:
      */
     Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
         PyObject *s = py_str.get();
-        Py_ssize_t idx = PyUnicode_FindChar(s, (Py_UCS4)ch, start, end, 1);
-        return idx;
+        return PyUnicode_FindChar(s, (Py_UCS4)ch, start, end, 1);
     }
 
     /**
@@ -135,8 +133,7 @@ public:
      */
     Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
         PyObject *s = py_str.get();
-        Py_ssize_t idx = PyUnicode_FindChar(s, (Py_UCS4)ch, start, end, -1);
-        return idx;
+        return PyUnicode_FindChar(s, (Py_UCS4)ch, start, end, -1);
     }
 };
 
