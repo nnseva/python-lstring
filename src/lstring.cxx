@@ -68,7 +68,7 @@ static PyType_Slot LStr_slots[] = {
  * Create a concrete type object for `L` from this spec.
  */
 PyType_Spec LStr_spec = {
-    "lstring.L",
+    "_lstring.L",
     sizeof(LStrObject),
     0,
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -353,12 +353,42 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
  * comparison. For EQ/NE a cheap hash comparison is attempted first.
  */
 static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
-    if (Py_TYPE(a) != Py_TYPE(b)) {
+    // Python guarantees that 'a' is always an instance of our type (LStrObject)
+    // when tp_richcompare is called. We only need to check if 'b' needs conversion.
+    
+    LStrObject *la = (LStrObject*)a;
+    LStrObject *lb = nullptr;
+    tptr<LStrObject> temp_b;
+    
+    PyTypeObject *type_a = Py_TYPE(a);
+    PyTypeObject *type_b = Py_TYPE(b);
+    
+    // Find the base L type by walking up from type_a
+    // Since 'a' is guaranteed to be L or subclass, walking up tp_base chain
+    // will eventually find the C++ L type. The C++ type name is "_lstring.L" as
+    // defined in LStr_spec.
+    PyTypeObject *base_type = type_a;
+    while (base_type->tp_base != nullptr && 
+           strcmp(base_type->tp_name, "_lstring.L") != 0) {
+        base_type = base_type->tp_base;
+    }
+    
+    // Check if b is an instance of the same base L type
+    if (PyObject_IsInstance(b, (PyObject*)base_type) == 1) {
+        lb = (LStrObject*)b;
+    }
+    // Check if b is a str that we should convert to L
+    else if (PyUnicode_Check(b)) {
+        // Create temporary L from str using the same type as a
+        temp_b = tptr<LStrObject>((LStrObject*)PyObject_CallFunctionObjArgs((PyObject*)type_a, b, nullptr));
+        if (!temp_b) return nullptr;
+        lb = (LStrObject*)temp_b.ptr().get();
+    }
+    // Not compatible types
+    else {
         Py_RETURN_NOTIMPLEMENTED;
     }
 
-    LStrObject *la = (LStrObject*)a;
-    LStrObject *lb = (LStrObject*)b;
     Buffer *ba = la->buffer;
     Buffer *bb = lb->buffer;
 
@@ -431,7 +461,7 @@ PyType_Slot LStrIter_slots[] = {
 };
 
 PyType_Spec LStrIter_spec = {
-    "lstring._lstr_iterator",
+    "_lstring._lstr_iterator",
     sizeof(LStrIterObject),
     0,
     Py_TPFLAGS_DEFAULT,
