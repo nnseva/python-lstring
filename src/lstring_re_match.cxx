@@ -519,22 +519,24 @@ static PyObject* Match_repr(PyObject *self_obj) {
         Py_ssize_t end_pos = begin_iter.distance_to(buf->results[0].second);
         
         // Get the matched string
-        cppy::ptr lstr_type_ptr(get_string_lstr_type());
-        if (!lstr_type_ptr) return nullptr;
-        PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
-        
-        cppy::ptr match_lobj((PyObject*)PyType_GenericAlloc(lstr_type, 0));
-        if (!match_lobj) return nullptr;
-        LStrObject *match_lobj_raw = reinterpret_cast<LStrObject*>(match_lobj.get());
-        match_lobj_raw->buffer = new Slice1Buffer(buf->where.get(), start_pos, end_pos);
-        
-        // Convert to Python str for display
-        cppy::ptr match_str(PyObject_Str(match_lobj.get()));
-        if (!match_str) return nullptr;
+//        cppy::ptr lstr_type_ptr(get_string_lstr_type());
+//        if (!lstr_type_ptr) return nullptr;
+//        PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
+//        
+//        cppy::ptr match_lobj((PyObject*)PyType_GenericAlloc(lstr_type, 0));
+//        if (!match_lobj) return nullptr;
+//        LStrObject *match_lobj_raw = reinterpret_cast<LStrObject*>(match_lobj.get());
+//        match_lobj_raw->buffer = new Slice1Buffer(buf->where.get(), start_pos, end_pos);
+//        
+//        // Convert to Python str for display
+//        cppy::ptr match_str(PyObject_Str(match_lobj.get()));
+//        if (!match_str) return nullptr;
         
         // Format: <re.Match object; span=(start, end), match='...'>
-        return PyUnicode_FromFormat("<_lstring.re.Match object; span=(%zd, %zd), match=%R>",
-                                    start_pos, end_pos, match_str.get());
+//        return PyUnicode_FromFormat("<_lstring.re.Match object; span=(%zd, %zd), match=%R>",
+//                                    start_pos, end_pos, match_str.get());
+        return PyUnicode_FromFormat("<_lstring.re.Match object; span=(%zd, %zd)>",
+                                    start_pos, end_pos);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
