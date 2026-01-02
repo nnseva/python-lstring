@@ -16,6 +16,46 @@ class L(_lstring.L):
     maintaining C++ performance for core operations.
     """
     
+    def __eq__(self, other):
+        """Compare for equality with str or L."""
+        if isinstance(other, str):
+            other = L(other)
+        return super().__eq__(other)
+    
+    def __ne__(self, other):
+        """Compare for inequality with str or L."""
+        if isinstance(other, str):
+            other = L(other)
+        return super().__ne__(other)
+    
+    def __lt__(self, other):
+        """Compare less than with str or L."""
+        if isinstance(other, str):
+            other = L(other)
+        return super().__lt__(other)
+    
+    def __le__(self, other):
+        """Compare less than or equal with str or L."""
+        if isinstance(other, str):
+            other = L(other)
+        return super().__le__(other)
+    
+    def __gt__(self, other):
+        """Compare greater than with str or L."""
+        if isinstance(other, str):
+            other = L(other)
+        return super().__gt__(other)
+    
+    def __ge__(self, other):
+        """Compare greater than or equal with str or L."""
+        if isinstance(other, str):
+            other = L(other)
+        return super().__ge__(other)
+    
+    def __hash__(self):
+        """Delegate hash to parent C++ implementation."""
+        return super().__hash__()
+    
     def join(self, iterable):
         """
         Join elements of iterable with self as separator.
