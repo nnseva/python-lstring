@@ -15,15 +15,6 @@
  */
 class Buffer {
 protected:
-    /**
-     * @brief Helper to retrieve the Buffer pointer from an LStrObject PyObject.
-     * @param obj A PyObject pointer expected to be an LStrObject.
-     * @return Buffer* pointer stored inside the LStrObject.
-     */
-    static Buffer* get_buffer(PyObject *obj) {
-        LStrObject *lstr = reinterpret_cast<LStrObject*>(obj);
-        return lstr->buffer;
-    }
 
     /**
      * @brief Inline helper to treat PyUnicode_DATA as 1-byte storage.

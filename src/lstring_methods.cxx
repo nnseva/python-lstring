@@ -8,6 +8,7 @@
 #include "lstring_utils.hxx"
 #include "buffer.hxx"
 #include "str_buffer.hxx"
+#include "tptr.hxx"
 
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
 static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
@@ -59,15 +60,12 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
     Py_ssize_t src_len = (Py_ssize_t)src->length();
 
     // Obtain a Buffer for sub: accept Python str or L
-    Buffer *sub_buf = nullptr;
-    cppy::ptr sub_owner;
+    tptr<LStrObject> sub_owner;
     if (PyUnicode_Check(sub_obj)) {
         // wrap Python str into a temporary `L` via factory and own it
         PyTypeObject *type = Py_TYPE(self);
-        PyObject *tmp = make_lstr_from_pystr(type, sub_obj);
-        if (!tmp) return nullptr;
-        sub_owner = cppy::ptr(tmp);
-        sub_buf = ((LStrObject*)tmp)->buffer;
+        sub_owner = tptr<LStrObject>(make_lstr_from_pystr(type, sub_obj));
+        if (!sub_owner) return nullptr;
     } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
         // assume it's an L-like object
         LStrObject *lsub = (LStrObject*)sub_obj;
@@ -75,14 +73,13 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
             PyErr_SetString(PyExc_RuntimeError, "substring L has no buffer");
             return nullptr;
         }
-        sub_owner = cppy::ptr(sub_obj, true); // incref
-        sub_buf = lsub->buffer;
+        sub_owner = tptr<LStrObject>(sub_obj, true);
     } else {
         PyErr_SetString(PyExc_TypeError, "sub must be str or L");
         return nullptr;
     }
 
-    Py_ssize_t sub_len = (Py_ssize_t)sub_buf->length();
+    Py_ssize_t sub_len = (Py_ssize_t)sub_owner->buffer->length();
 
     // Parse start
     Py_ssize_t start;
@@ -135,9 +132,9 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
     // Fast-path: if both source and substring are string-backed buffers,
     // delegate to the built-in Python unicode find implementation which is
     // optimized in C and understands Python slice semantics.
-    if (src->is_str() && sub_buf->is_str()) {
+    if (src->is_str() && sub_owner->buffer->is_str()) {
         PyObject *src_py = ((StrBuffer*)src)->get_str();
-        PyObject *sub_py = ((StrBuffer*)sub_buf)->get_str();
+        PyObject *sub_py = ((StrBuffer*)sub_owner->buffer)->get_str();
         Py_ssize_t idx = PyUnicode_Find(src_py, sub_py, start, end, 1); // direction=1 -> find
         if (idx == -1 && PyErr_Occurred()) return nullptr;
         return PyLong_FromSsize_t(idx);
@@ -148,7 +145,7 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
     // candidate positions. This delegates single-codepoint search to
     // the buffer implementation which may provide faster paths for
     // joined/repeated/sliced buffers.
-    uint32_t first_cp = sub_buf->value(0);
+    uint32_t first_cp = sub_owner->buffer->value(0);
     Py_ssize_t pos = start;
     Py_ssize_t last = end - sub_len;
     while (pos <= last) {
@@ -158,11 +155,11 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
 
         // verify full substring match at position i
         // We can skip j==0 because findc returned i where
-        // src->value(i) == first_cp == sub_buf->value(0).
+        // src->value(i) == first_cp == sub_owner->buffer->value(0).
         bool match = true;
         for (Py_ssize_t j = 1; j < sub_len; ++j) {
             uint32_t a = src->value(i + j);
-            uint32_t b = sub_buf->value(j);
+            uint32_t b = sub_owner->buffer->value(j);
             if (a != b) { match = false; break; }
         }
         if (match) return PyLong_FromSsize_t(i);
@@ -200,28 +197,24 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
     Py_ssize_t src_len = (Py_ssize_t)src->length();
 
     // Obtain sub buffer (str or L)
-    Buffer *sub_buf = nullptr;
-    cppy::ptr sub_owner;
+    tptr<LStrObject> sub_owner;
     if (PyUnicode_Check(sub_obj)) {
         PyTypeObject *type = Py_TYPE(self);
-        PyObject *tmp = make_lstr_from_pystr(type, sub_obj);
-        if (!tmp) return nullptr;
-        sub_owner = cppy::ptr(tmp);
-        sub_buf = ((LStrObject*)tmp)->buffer;
+        sub_owner = tptr<LStrObject>(make_lstr_from_pystr(type, sub_obj));
+        if (!sub_owner) return nullptr;
     } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
         LStrObject *lsub = (LStrObject*)sub_obj;
         if (!lsub->buffer) {
             PyErr_SetString(PyExc_RuntimeError, "substring L has no buffer");
             return nullptr;
         }
-        sub_owner = cppy::ptr(sub_obj, true);
-        sub_buf = lsub->buffer;
+        sub_owner = tptr<LStrObject>(sub_obj, true);
     } else {
         PyErr_SetString(PyExc_TypeError, "sub must be str or L");
         return nullptr;
     }
 
-    Py_ssize_t sub_len = (Py_ssize_t)sub_buf->length();
+    Py_ssize_t sub_len = (Py_ssize_t)sub_owner->buffer->length();
 
     // Parse start
     Py_ssize_t start;
@@ -275,9 +268,9 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
 
     // Fast-path: if both source and substring are string-backed buffers,
     // delegate to Python unicode rfind via PyUnicode_Find with direction=-1.
-    if (src->is_str() && sub_buf->is_str()) {
+    if (src->is_str() && sub_owner->buffer->is_str()) {
         PyObject *src_py = ((StrBuffer*)src)->get_str();
-        PyObject *sub_py = ((StrBuffer*)sub_buf)->get_str();
+        PyObject *sub_py = ((StrBuffer*)sub_owner->buffer)->get_str();
         Py_ssize_t idx = PyUnicode_Find(src_py, sub_py, start, end, -1); // direction=-1 -> rfind
         if (idx == -1 && PyErr_Occurred()) return nullptr;
         return PyLong_FromSsize_t(idx);
@@ -288,7 +281,7 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
     // that corresponds to a candidate match last code point.
     // Verify the substring by comparing the
     // remaining code points in backward direction.
-    uint32_t last_cp = sub_buf->value(sub_len - 1);
+    uint32_t last_cp = sub_owner->buffer->value(sub_len - 1);
     Py_ssize_t pos = end; // rfindc searches in [start, pos)
     while (pos > start + sub_len - 1) {
         Py_ssize_t k = src->rfindc(start, pos, last_cp);
@@ -300,7 +293,7 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
         bool match = true;
         for (Py_ssize_t j = 1; j < sub_len; ++j) {
             uint32_t a = src->value(k - j);
-            uint32_t b = sub_buf->value(sub_len - j - 1);
+            uint32_t b = sub_owner->buffer->value(sub_len - j - 1);
             if (a != b) { match = false; break; }
         }
         if (match) return PyLong_FromSsize_t(k - sub_len + 1);

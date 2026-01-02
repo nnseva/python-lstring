@@ -13,6 +13,8 @@
 
 #include <Python.h>
 #include "lstring_re_iterator.hxx"
+#include "lstring_re_pattern.hxx"
+#include "tptr.hxx"
 #include <cppy/cppy.h>
 #include <boost/regex/v5/regex.hpp>
 #include <string>
@@ -58,9 +60,9 @@ public:
     virtual ~LStrMatchBuffer() = default;
 
     // Reference to the Pattern that produced these results.
-    cppy::ptr pattern;
+    tptr<PatternObject> pattern;
     // Reference to the subject `lstring.L` object where the search was run.
-    cppy::ptr where;
+    tptr<LStrObject> where;
     // Actual Boost.Regex match results. Holds iterators into the subject.
     boost::match_results<LStrIteratorBuffer<CharT>> results;
 };

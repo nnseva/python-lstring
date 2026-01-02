@@ -6,6 +6,8 @@
 #include <cstdint>
 
 #include "buffer.hxx"
+#include "lstring.hxx"
+#include "tptr.hxx"
 #include <cppy/ptr.h>
 
 /**
@@ -15,7 +17,7 @@
  */
 class MulBuffer : public Buffer {
 private:
-    cppy::ptr lstr_obj;
+    tptr<LStrObject> lstr_obj;
     Py_ssize_t repeat_count;
 
 public:
@@ -27,7 +29,7 @@ public:
      * @throws std::runtime_error if count is negative.
      */
     MulBuffer(PyObject *lstr, Py_ssize_t count)
-        : lstr_obj(lstr, true), repeat_count(count) 
+        : lstr_obj((LStrObject*)lstr, true), repeat_count(count) 
     {
         if (repeat_count < 0) {
             throw std::runtime_error("MulBuffer: repeat count must be non-negative");
@@ -45,8 +47,7 @@ public:
      * Returns base_length * repeat_count.
      */
     Py_ssize_t length() const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        return buf->length() * repeat_count;
+        return lstr_obj->buffer->length() * repeat_count;
     }
 
     /**
@@ -55,8 +56,7 @@ public:
      * Delegates to the underlying base buffer.
      */
     int unicode_kind() const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        return buf->unicode_kind();
+        return lstr_obj->buffer->unicode_kind();
     }
 
     /**
@@ -66,33 +66,30 @@ public:
      * Throws std::out_of_range if the base buffer has zero length.
      */
     uint32_t value(Py_ssize_t index) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        Py_ssize_t base_len = buf->length();
+        Py_ssize_t base_len = lstr_obj->buffer->length();
         if (base_len <= 0) throw std::out_of_range("MulBuffer: base length is zero");
         Py_ssize_t pos = index % base_len;
-        return buf->value(pos);
+        return lstr_obj->buffer->value(pos);
     }
 
     /**
      * @brief Copy a range of code points into a 32-bit destination buffer.
      */
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        Py_ssize_t base_len = buf->length();
+        Py_ssize_t base_len = lstr_obj->buffer->length();
         if (base_len <= 0) return;
         for (Py_ssize_t i = 0; i < count; ++i) {
-            target[i] = buf->value((start + i) % base_len);
+            target[i] = lstr_obj->buffer->value((start + i) % base_len);
         }
     }
     /**
      * @brief Copy a range of code points into a 16-bit destination buffer.
      */
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        Py_ssize_t base_len = buf->length();
+        Py_ssize_t base_len = lstr_obj->buffer->length();
         if (base_len <= 0) return;
         for (Py_ssize_t i = 0; i < count; ++i) {
-            target[i] = static_cast<uint16_t>(buf->value((start + i) % base_len));
+            target[i] = static_cast<uint16_t>(lstr_obj->buffer->value((start + i) % base_len));
         }
     }
 
@@ -100,11 +97,10 @@ public:
      * @brief Copy a range of code points into an 8-bit destination buffer.
      */
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        Py_ssize_t base_len = buf->length();
+        Py_ssize_t base_len = lstr_obj->buffer->length();
         if (base_len <= 0) return;
         for (Py_ssize_t i = 0; i < count; ++i) {
-            target[i] = static_cast<uint8_t>(buf->value((start + i) % base_len));
+            target[i] = static_cast<uint8_t>(lstr_obj->buffer->value((start + i) % base_len));
         }
     }
 
@@ -114,16 +110,14 @@ public:
      * Returns a new Python string of the form "(<base_repr> * <count>)".
      */
     PyObject* repr() const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        cppy::ptr lrepr( buf->repr() );
+        cppy::ptr lrepr( lstr_obj->buffer->repr() );
         if (!lrepr) return nullptr;
         PyObject *result = PyUnicode_FromFormat("(%U * %zd)", lrepr.get(), repeat_count);
         return result;
     }
 
     Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        Py_ssize_t base_len = buf->length();
+        Py_ssize_t base_len = lstr_obj->buffer->length();
         // total length may overflow if huge, but repeat_count and base_len
         // are expected to be reasonable; still guard against zero base
         if (base_len <= 0) return -1;
@@ -150,20 +144,20 @@ public:
 
         if (rep_end == rep_start) {
             // single-block: search only within [off_start, off_end)
-            Py_ssize_t pos = buf->findc(off_start, off_end, ch);
+            Py_ssize_t pos = lstr_obj->buffer->findc(off_start, off_end, ch);
             if (pos != -1) return rep_start * base_len + pos;
             return -1;
         }
 
         // rep_end > rep_start
         // 1) search first partial segment [off_start, base_len)
-        Py_ssize_t pos = buf->findc(off_start, base_len, ch);
+        Py_ssize_t pos = lstr_obj->buffer->findc(off_start, base_len, ch);
         if (pos != -1) return rep_start * base_len + pos;
 
         if (rep_end == rep_start + 1) {
             // adjacent blocks: second block may be partial, search [0, off_end)
             if (off_end > 0) {
-                Py_ssize_t pos2 = buf->findc(0, off_end, ch);
+                Py_ssize_t pos2 = lstr_obj->buffer->findc(0, off_end, ch);
                 if (pos2 != -1) return rep_end * base_len + pos2;
             }
             return -1;
@@ -174,7 +168,7 @@ public:
         // in the first block, so we only need to search the remaining prefix [0, off_start)
         // of the base block to find the earliest occurrence inside rep_start+1.
         if (off_start > 0) {
-            Py_ssize_t pos_in_prefix = buf->findc(0, off_start, ch);
+            Py_ssize_t pos_in_prefix = lstr_obj->buffer->findc(0, off_start, ch);
             if (pos_in_prefix != -1) return (rep_start + 1) * base_len + pos_in_prefix;
         }
 
@@ -182,8 +176,7 @@ public:
     }
 
     Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        Py_ssize_t base_len = buf->length();
+        Py_ssize_t base_len = lstr_obj->buffer->length();
         if (base_len <= 0) return -1;
         Py_ssize_t total = base_len * repeat_count;
 
@@ -202,7 +195,7 @@ public:
 
         // Case A: single block
         if (rep_end == rep_start) {
-            Py_ssize_t pos = buf->rfindc(off_start, off_end, ch);
+            Py_ssize_t pos = lstr_obj->buffer->rfindc(off_start, off_end, ch);
             if (pos != -1) return rep_start * base_len + pos;
             return -1;
         }
@@ -210,13 +203,13 @@ public:
         // Case B and C: rep_end > rep_start
         // 1) search last partial block [0, off_end) in reverse
         if (off_end > 0) {
-            Py_ssize_t pos = buf->rfindc(0, off_end, ch);
+            Py_ssize_t pos = lstr_obj->buffer->rfindc(0, off_end, ch);
             if (pos != -1) return rep_end * base_len + pos;
         }
 
         if (rep_end == rep_start + 1) {
             // adjacent blocks: search first partial block [off_start, base_len)
-            Py_ssize_t pos2 = buf->rfindc(off_start, base_len, ch);
+            Py_ssize_t pos2 = lstr_obj->buffer->rfindc(off_start, base_len, ch);
             if (pos2 != -1) return rep_start * base_len + pos2;
             return -1;
         }
@@ -225,7 +218,7 @@ public:
         // search the suffix of base block that was not yet searched in the final partial
         // Because we already checked final partial and it didn't contain ch, we can
         // search the full base for the rightmost occurrence and map it into rep_end-1.
-        Py_ssize_t pos_in_base = buf->rfindc(0, base_len, ch);
+        Py_ssize_t pos_in_base = lstr_obj->buffer->rfindc(0, base_len, ch);
         if (pos_in_base != -1) {
             return (rep_end - 1) * base_len + pos_in_base;
         }

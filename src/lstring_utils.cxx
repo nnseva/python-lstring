@@ -6,6 +6,7 @@
 #include <Python.h>
 #include "lstring.hxx"
 #include "lstring_utils.hxx"
+#include "tptr.hxx"
 #include <cppy/cppy.h>
 #include "buffer.hxx"
 #include "str_buffer.hxx"
@@ -95,9 +96,8 @@ PyObject* make_lstr_from_pystr(PyTypeObject *type, PyObject *py_str) {
         return nullptr;
     }
 
-    LStrObject *self = (LStrObject*)type->tp_alloc(type, 0);
+    tptr<LStrObject> self((LStrObject*)type->tp_alloc(type, 0));
     if (!self) return nullptr;
-    cppy::ptr self_owner((PyObject*)self);
 
     try {
         self->buffer = make_str_buffer(py_str);
@@ -110,7 +110,7 @@ PyObject* make_lstr_from_pystr(PyTypeObject *type, PyObject *py_str) {
         return nullptr;
     }
 
-    return self_owner.release();
+    return self.ptr().release();
 }
 
 // Convenience overload: take a Python str and construct an lstring.L instance

@@ -5,7 +5,7 @@
 #include <cstdint>
 
 #include "buffer.hxx"
-#include <cppy/ptr.h>
+#include "tptr.hxx"
 
 /**
  * @brief JoinBuffer — concatenation of two buffers
@@ -14,8 +14,8 @@
  */
 class JoinBuffer : public Buffer {
 private:
-    cppy::ptr left_obj;
-    cppy::ptr right_obj;
+    tptr<LStrObject> left_obj;
+    tptr<LStrObject> right_obj;
 
 public:
     /**
@@ -45,9 +45,7 @@ public:
      * @return Sum of left->length() and right->length().
      */
     Py_ssize_t length() const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-        return lbuf->length() + rbuf->length();
+        return left_obj->buffer->length() + right_obj->buffer->length();
     }
 
     /**
@@ -56,9 +54,7 @@ public:
      * Returns the maximum unicode kind required by either side (1/2/4-byte).
      */
     int unicode_kind() const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-        return std::max(lbuf->unicode_kind(), rbuf->unicode_kind());
+        return std::max(left_obj->buffer->unicode_kind(), right_obj->buffer->unicode_kind());
     }
 
     /**
@@ -68,13 +64,11 @@ public:
      * @return Unicode code point value.
      */
     uint32_t value(Py_ssize_t index) const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Py_ssize_t llen = lbuf->length();
+        Py_ssize_t llen = left_obj->buffer->length();
         if (index < llen) {
-            return lbuf->value(index);
+            return left_obj->buffer->value(index);
         }
-        Buffer *rbuf = get_buffer(right_obj.get());
-        return rbuf->value(index - llen);
+        return right_obj->buffer->value(index - llen);
     }
 
     /**
@@ -89,18 +83,16 @@ public:
      * @param count Number of code points to copy.
      */
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-        Py_ssize_t llen = lbuf->length();
+        Py_ssize_t llen = left_obj->buffer->length();
 
         if (start < llen) {
             Py_ssize_t left_count = std::min(count, llen - start);
-            lbuf->copy(target, start, left_count);
+            left_obj->buffer->copy(target, start, left_count);
             if (left_count < count) {
-                rbuf->copy(target + left_count, 0, count - left_count);
+                right_obj->buffer->copy(target + left_count, 0, count - left_count);
             }
         } else {
-            rbuf->copy(target, start - llen, count);
+            right_obj->buffer->copy(target, start - llen, count);
         }
     }
 
@@ -111,18 +103,16 @@ public:
      * a UTF-16 buffer.
      */
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-        Py_ssize_t llen = lbuf->length();
+        Py_ssize_t llen = left_obj->buffer->length();
 
         if (start < llen) {
             Py_ssize_t left_count = std::min(count, llen - start);
-            lbuf->copy(target, start, left_count);
+            left_obj->buffer->copy(target, start, left_count);
             if (left_count < count) {
-                rbuf->copy(target + left_count, 0, count - left_count);
+                right_obj->buffer->copy(target + left_count, 0, count - left_count);
             }
         } else {
-            rbuf->copy(target, start - llen, count);
+            right_obj->buffer->copy(target, start - llen, count);
         }
     }
 
@@ -133,18 +123,16 @@ public:
      * into 1-byte storage.
      */
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-        Py_ssize_t llen = lbuf->length();
+        Py_ssize_t llen = left_obj->buffer->length();
 
         if (start < llen) {
             Py_ssize_t left_count = std::min(count, llen - start);
-            lbuf->copy(target, start, left_count);
+            left_obj->buffer->copy(target, start, left_count);
             if (left_count < count) {
-                rbuf->copy(target + left_count, 0, count - left_count);
+                right_obj->buffer->copy(target + left_count, 0, count - left_count);
             }
         } else {
-            rbuf->copy(target, start - llen, count);
+            right_obj->buffer->copy(target, start - llen, count);
         }
     }
 
@@ -155,13 +143,10 @@ public:
      * in the form "(<left_repr> + <right_repr>)".
      */
     PyObject* repr() const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-
-        cppy::ptr lrepr( lbuf->repr() );
-        cppy::ptr rrepr( rbuf->repr() );
+        tptr<LStrObject> lrepr( left_obj->buffer->repr() );
+        tptr<LStrObject> rrepr( right_obj->buffer->repr() );
         if (!lrepr || !rrepr) return nullptr;
-        PyObject *result = PyUnicode_FromFormat("(%U + %U)", lrepr.get(), rrepr.get());
+        PyObject *result = PyUnicode_FromFormat("(%U + %U)", lrepr.ptr().get(), rrepr.ptr().get());
         return result;
     }
 
@@ -171,10 +156,8 @@ public:
      * for this buffer implementation.
      */
     Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-        Py_ssize_t llen = lbuf->length();
-        Py_ssize_t rlen = rbuf->length();
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
         Py_ssize_t total = llen + rlen;
 
         if (total <= 0) return -1;
@@ -188,7 +171,7 @@ public:
         if (start < llen) {
             Py_ssize_t left_start = start;
             Py_ssize_t left_end = (end < llen) ? end : llen;
-            Py_ssize_t pos = lbuf->findc(left_start, left_end, ch);
+            Py_ssize_t pos = left_obj->buffer->findc(left_start, left_end, ch);
             if (pos != -1) return pos;
         }
 
@@ -196,7 +179,7 @@ public:
         if (end > llen) {
             Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
             Py_ssize_t right_end = end - llen;
-            Py_ssize_t pos = rbuf->findc(right_start, right_end, ch);
+            Py_ssize_t pos = right_obj->buffer->findc(right_start, right_end, ch);
             if (pos != -1) return pos + llen;
         }
 
@@ -204,10 +187,8 @@ public:
     }
 
     Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
-        Buffer *lbuf = get_buffer(left_obj.get());
-        Buffer *rbuf = get_buffer(right_obj.get());
-        Py_ssize_t llen = lbuf->length();
-        Py_ssize_t rlen = rbuf->length();
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
         Py_ssize_t total = llen + rlen;
 
         if (total <= 0) return -1;
@@ -221,7 +202,7 @@ public:
         if (end > llen) {
             Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
             Py_ssize_t right_end = end - llen;
-            Py_ssize_t pos = rbuf->rfindc(right_start, right_end, ch);
+            Py_ssize_t pos = right_obj->buffer->rfindc(right_start, right_end, ch);
             if (pos != -1) return pos + llen;
         }
 
@@ -229,7 +210,7 @@ public:
         if (start < llen) {
             Py_ssize_t left_start = start;
             Py_ssize_t left_end = (end < llen) ? end : llen;
-            Py_ssize_t pos = lbuf->rfindc(left_start, left_end, ch);
+            Py_ssize_t pos = left_obj->buffer->rfindc(left_start, left_end, ch);
             if (pos != -1) return pos;
         }
 

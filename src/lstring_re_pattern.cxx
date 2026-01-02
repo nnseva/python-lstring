@@ -4,17 +4,11 @@
 #include "lstring_utils.hxx"
 #include "lstring_re_match.hxx"
 #include "slice_buffer.hxx"
+#include "tptr.hxx"
 #include <cppy/cppy.h>
 #include <boost/regex.hpp>
 
 using CharT = wchar_t; // keep consistent with module placeholder
-
-// Declaration of PatternObject used by PyType_Spec
-struct PatternObject {
-    PyObject_HEAD
-    LStrRegexBuffer<CharT> *buf;
-    PyObject *match_factory; // Factory (class or callable) to create Match instances
-};
 
 // Free PatternObject
 void Pattern_dealloc(PyObject *self_obj) {
@@ -47,9 +41,9 @@ int Pattern_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "OiO", kwlist, &pattern_arg, &flags, &match_factory)) return -1;
 
     // Verify that pattern is lstring.L
-    cppy::ptr LType(get_string_lstr_type());
+    tptr<PyTypeObject> LType(get_string_lstr_type());
     if (!LType) return -1;
-    int is_instance = PyObject_IsInstance(pattern_arg, LType.get());
+    int is_instance = PyObject_IsInstance(pattern_arg, LType.ptr().get());
     if (is_instance == 0) {
         PyErr_SetString(PyExc_TypeError, "pattern must be lstring.L");
         return -1;
@@ -82,55 +76,55 @@ int Pattern_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
         return -1;
     }
     
-    Py_INCREF(match_factory);
-    self->match_factory = match_factory;
+    // Store owned reference to match factory
+    self->match_factory = (PyObject*)cppy::incref(match_factory);
 
     return 0;
 }
 
 // Helper function to parse and validate subject argument from Pattern methods.
 // Parses subject (must be lstring.L), pos, and endpos parameters.
-// Returns the validated subject as PyObject* (pointing to lstring.L), or nullptr on error.
-static PyObject* parse_subject_argument(PyObject *args, cppy::ptr &subject_owner, Py_ssize_t &pos, Py_ssize_t &endpos) {
+// Returns tptr<LStrObject> holding the validated subject, or empty tptr on error.
+static tptr<LStrObject> parse_subject_argument(PyObject *args, Py_ssize_t &pos, Py_ssize_t &endpos) {
     PyObject *subject = nullptr;
     PyObject *pos_obj = nullptr;
     PyObject *endpos_obj = nullptr;
     
-    if (!PyArg_ParseTuple(args, "O|OO", &subject, &pos_obj, &endpos_obj)) return nullptr;
+    if (!PyArg_ParseTuple(args, "O|OO", &subject, &pos_obj, &endpos_obj)) return tptr<LStrObject>();
 
     // Verify that subject is lstring.L
-    cppy::ptr LType(get_string_lstr_type());
-    if (!LType) return nullptr;
-    int is_inst = PyObject_IsInstance(subject, LType.get());
+    tptr<PyTypeObject> LType(get_string_lstr_type());
+    if (!LType) return tptr<LStrObject>();
+    int is_inst = PyObject_IsInstance(subject, LType.ptr().get());
     if (is_inst == 0) {
         PyErr_SetString(PyExc_TypeError, "subject must be lstring.L");
-        return nullptr;
+        return tptr<LStrObject>();
     } else if (is_inst < 0) {
-        return nullptr;
+        return tptr<LStrObject>();
     }
-    subject_owner = cppy::ptr(subject, true); // take new ref
+    tptr<LStrObject> subject_owner(subject, true); // take new ref
 
     // Parse pos parameter (default: 0)
     pos = 0;
     if (pos_obj && pos_obj != Py_None) {
         pos = PyLong_AsSsize_t(pos_obj);
-        if (pos == -1 && PyErr_Occurred()) return nullptr;
+        if (pos == -1 && PyErr_Occurred()) return tptr<LStrObject>();
         if (pos < 0) {
             PyErr_SetString(PyExc_ValueError, "pos must be non-negative");
-            return nullptr;
+            return tptr<LStrObject>();
         }
     }
 
     // Parse endpos parameter (default: length of subject)
-    LStrObject *lobj = reinterpret_cast<LStrObject*>(subject);
+    LStrObject *lobj = subject_owner.get();
     Py_ssize_t subject_len = lobj->buffer->length();
     endpos = subject_len;
     if (endpos_obj && endpos_obj != Py_None) {
         endpos = PyLong_AsSsize_t(endpos_obj);
-        if (endpos == -1 && PyErr_Occurred()) return nullptr;
+        if (endpos == -1 && PyErr_Occurred()) return tptr<LStrObject>();
         if (endpos < 0) {
             PyErr_SetString(PyExc_ValueError, "endpos must be non-negative");
-            return nullptr;
+            return tptr<LStrObject>();
         }
     }
 
@@ -139,19 +133,19 @@ static PyObject* parse_subject_argument(PyObject *args, cppy::ptr &subject_owner
     if (endpos > subject_len) endpos = subject_len;
     if (endpos < pos) endpos = pos;
 
-    return subject;
+    return subject_owner;
 }
 
 // Create a new Match instance using the provided factory with pattern and subject.
-// Returns a new reference. On failure the nullptr is returned.
-PyObject *lstring_re_create_match(PyObject *match_factory, PyObject *pattern, PyObject *subject) {
+// Returns tptr<MatchObject> with the new Match instance, or empty tptr on failure.
+tptr<MatchObject> lstring_re_create_match(PyObject *match_factory, PyObject *pattern, PyObject *subject) {
     cppy::ptr args(Py_BuildValue("(OO)", pattern, subject));
-    if (!args) return nullptr;
+    if (!args) return tptr<MatchObject>();
     
     cppy::ptr obj = PyObject_CallObject(match_factory, args.get());
-    if (!obj) return nullptr;
+    if (!obj) return tptr<MatchObject>();
     
-    return obj.release();
+    return tptr<MatchObject>((MatchObject*)obj.release());
 }
 
 
@@ -163,18 +157,16 @@ static PyObject* Pattern_match(PyObject *self_obj, PyObject *args) {
         return nullptr;
     }
 
-    cppy::ptr subject_owner;
     Py_ssize_t pos, endpos;
-    PyObject *subject = parse_subject_argument(args, subject_owner, pos, endpos);
-    if (!subject) return nullptr;
+    tptr<LStrObject> subject_owner = parse_subject_argument(args, pos, endpos);
+    if (!subject_owner) return nullptr;
 
-    cppy::ptr match_owner = lstring_re_create_match(self->match_factory, self_obj, subject);
+    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get());
     if (!match_owner) return nullptr;
     
-    MatchObject *match_obj = (MatchObject*)(match_owner.get());
-    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_obj->matchbuf);
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
 
-    LStrObject *lobj = (LStrObject*)subject;
+    LStrObject *lobj = subject_owner.get();
     bool found = false;
     try {
         LStrIteratorBuffer<CharT> begin(lobj, pos);
@@ -189,7 +181,7 @@ static PyObject* Pattern_match(PyObject *self_obj, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    return match_owner.release();
+    return match_owner.ptr().release();
 }
 
 // Stub: Pattern.search(subject, pos=0, endpos=sys.maxsize)
@@ -200,18 +192,16 @@ static PyObject* Pattern_search(PyObject *self_obj, PyObject *args) {
         return nullptr;
     }
 
-    cppy::ptr subject_owner;
     Py_ssize_t pos, endpos;
-    PyObject *subject = parse_subject_argument(args, subject_owner, pos, endpos);
-    if (!subject) return nullptr;
+    tptr<LStrObject> subject_owner = parse_subject_argument(args, pos, endpos);
+    if (!subject_owner) return nullptr;
 
-    cppy::ptr match_owner = lstring_re_create_match(self->match_factory, self_obj, subject);
+    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get());
     if (!match_owner) return nullptr;
     
-    MatchObject *match_obj = (MatchObject*)(match_owner.get());
-    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_obj->matchbuf);
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
 
-    LStrObject *lobj = (LStrObject*)subject;
+    LStrObject *lobj = subject_owner.get();
     bool found = false;
     try {
         LStrIteratorBuffer<CharT> begin(lobj, pos);
@@ -226,7 +216,7 @@ static PyObject* Pattern_search(PyObject *self_obj, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    return match_owner.release();
+    return match_owner.ptr().release();
 }
 
 // Stub: Pattern.fullmatch(subject, pos=0, endpos=sys.maxsize)
@@ -237,18 +227,16 @@ static PyObject* Pattern_fullmatch(PyObject *self_obj, PyObject *args) {
         return nullptr;
     }
 
-    cppy::ptr subject_owner;
     Py_ssize_t pos, endpos;
-    PyObject *subject = parse_subject_argument(args, subject_owner, pos, endpos);
-    if (!subject) return nullptr;
+    tptr<LStrObject> subject_owner = parse_subject_argument(args, pos, endpos);
+    if (!subject_owner) return nullptr;
 
-    cppy::ptr match_owner = lstring_re_create_match(self->match_factory, self_obj, subject);
+    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get());
     if (!match_owner) return nullptr;
     
-    MatchObject *match_obj = (MatchObject*)(match_owner.get());
-    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_obj->matchbuf);
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
 
-    LStrObject *lobj = (LStrObject*)subject;
+    LStrObject *lobj = subject_owner.get();
     bool found = false;
     try {
         LStrIteratorBuffer<CharT> begin(lobj, pos);
@@ -263,7 +251,7 @@ static PyObject* Pattern_fullmatch(PyObject *self_obj, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    return match_owner.release();
+    return match_owner.ptr().release();
 }
 
 PyMethodDef Pattern_methods[] = {
@@ -293,7 +281,7 @@ int lstring_re_register_pattern_type(PyObject *submodule) {
     PyObject *pattern_type = PyType_FromSpec(&pattern_spec);
     if (!pattern_type) return -1;
     if (PyModule_AddObject(submodule, "Pattern", pattern_type) < 0) {
-        Py_DECREF(pattern_type);
+        cppy::decref(pattern_type);
         return -1;
     }
     return 0;

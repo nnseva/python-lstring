@@ -14,7 +14,7 @@
 #include <Python.h>
 #include "lstring.hxx"
 #include "buffer.hxx"
-#include <cppy/cppy.h>
+#include "tptr.hxx"
 #include <cstdint>
 #include <cstddef>
 #include <boost/iterator/iterator_facade.hpp>
@@ -47,16 +47,15 @@ public:
     LStrIteratorBuffer& operator=(LStrIteratorBuffer&&) noexcept = default;
 
     // Construct an iterator buffer that holds a reference to the LStrObject.
-    // The cppy::ptr will own a strong reference (second arg true) to keep the
+    // The tptr will own a strong reference (second arg true) to keep the
     // LStrObject alive while the iterator exists.
     explicit LStrIteratorBuffer(LStrObject *lobj, Py_ssize_t pos = 0)
-        : obj_owner(reinterpret_cast<PyObject*>(lobj), true), index(pos)
+        : obj_owner(lobj, true), index(pos)
     {}
 
     // Return the length (number of codepoints) of the underlying buffer.
     Py_ssize_t length() const {
-        LStrObject *lobj = (LStrObject*)obj_owner.get();
-        return lobj ? lobj->buffer->length() : 0;
+        return obj_owner ? obj_owner->buffer->length() : 0;
     }
 
     void increment() {
@@ -83,14 +82,13 @@ public:
     }
 
     CharT dereference() const {
-        LStrObject *lobj = (LStrObject*)obj_owner.get();
         // Expect caller to ensure index in range.
-        return static_cast<CharT>(lobj->buffer->value(index));
+        return static_cast<CharT>(obj_owner->buffer->value(index));
     }
 
 private:
     // Own the LStrObject to keep it alive while iterator exists
-    cppy::ptr obj_owner;
+    tptr<LStrObject> obj_owner;
     Py_ssize_t index;
 };
 

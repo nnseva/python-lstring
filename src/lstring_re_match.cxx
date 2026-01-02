@@ -3,6 +3,7 @@
 #include "lstring_re_regex.hxx"
 #include "slice_buffer.hxx"
 #include "lstring_utils.hxx"
+#include "tptr.hxx"
 #include <cppy/cppy.h>
 
 // Use the same CharT choice as other regex components in this build.
@@ -48,9 +49,9 @@ Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
     }
     
     // Verify subject is lstring.L (no str conversion here)
-    cppy::ptr LType(get_string_lstr_type());
+    tptr<PyTypeObject> LType(get_string_lstr_type());
     if (!LType) return -1;
-    int is_lstr = PyObject_IsInstance(subject_obj, LType.get());
+    int is_lstr = PyObject_IsInstance(subject_obj, LType.ptr().get());
     if (is_lstr == -1) return -1;
     if (is_lstr == 0) {
         PyErr_SetString(PyExc_TypeError, "subject must be lstring.L");
@@ -83,12 +84,10 @@ Match_dealloc(PyObject *self_obj) {
 // Accepts only int (index) or lstring.L (name), no str conversion
 static PyObject*
 extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
-    LStrObject *where_lobj = reinterpret_cast<LStrObject*>(buf->where.get());
-    LStrIteratorBuffer<CharT> begin_iter(where_lobj, 0);
+    LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
     
-    cppy::ptr lstr_type_ptr(get_string_lstr_type());
-    if (!lstr_type_ptr) return nullptr;
-    PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
+    tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+    if (!lstr_type) return nullptr;
     
     // Check if argument is an integer (group index)
     if (PyLong_Check(arg_obj)) {
@@ -108,14 +107,14 @@ extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
         Py_ssize_t start = begin_iter.distance_to(buf->results[group_index].first);
         Py_ssize_t end = begin_iter.distance_to(buf->results[group_index].second);
         
-        LStrObject *result = (LStrObject*)PyType_GenericAlloc(lstr_type, 0);
+        tptr<LStrObject> result(PyType_GenericAlloc(lstr_type.get(), 0));
         if (!result) return nullptr;
-        result->buffer = new Slice1Buffer(buf->where.get(), start, end);
-        return (PyObject*)result;
+        result->buffer = new Slice1Buffer(buf->where.ptr().get(), start, end);
+        return result.ptr().release();
     }
     
     // Check if argument is lstring.L (group name)
-    int is_lstr = PyObject_IsInstance(arg_obj, (PyObject*)lstr_type);
+    int is_lstr = PyObject_IsInstance(arg_obj, lstr_type.ptr().get());
     if (is_lstr == -1) return nullptr;
     if (is_lstr == 0) {
         PyErr_SetString(PyExc_TypeError, "group argument must be an integer or lstring.L");
@@ -138,10 +137,10 @@ extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
     Py_ssize_t start = begin_iter.distance_to(sub.first);
     Py_ssize_t end = begin_iter.distance_to(sub.second);
     
-    LStrObject *result = (LStrObject*)PyType_GenericAlloc(lstr_type, 0);
+    tptr<LStrObject> result(PyType_GenericAlloc(lstr_type.get(), 0));
     if (!result) return nullptr;
-    result->buffer = new Slice1Buffer(buf->where.get(), start, end);
-    return (PyObject*)result;
+    result->buffer = new Slice1Buffer(buf->where.ptr().get(), start, end);
+    return result.ptr().release();
 }
 
 // group(*indices) - return one or more subgroups of the match by index or name
@@ -164,18 +163,16 @@ Match_group(PyObject *self_obj, PyObject *args) {
             Py_RETURN_NONE;
         }
         
-        LStrObject *where_lobj = reinterpret_cast<LStrObject*>(buf->where.get());
-        LStrIteratorBuffer<CharT> begin_iter(where_lobj, 0);
+        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
         Py_ssize_t start = begin_iter.distance_to(buf->results[0].first);
         Py_ssize_t end = begin_iter.distance_to(buf->results[0].second);
         
-        cppy::ptr lstr_type_ptr(get_string_lstr_type());
-        if (!lstr_type_ptr) return nullptr;
-        PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
-        LStrObject *result = (LStrObject*)PyType_GenericAlloc(lstr_type, 0);
+        tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+        if (!lstr_type) return nullptr;
+        tptr<LStrObject> result(PyType_GenericAlloc(lstr_type.get(), 0));
         if (!result) return nullptr;
-        result->buffer = new Slice1Buffer(buf->where.get(), start, end);
-        return (PyObject*)result;
+        result->buffer = new Slice1Buffer(buf->where.ptr().get(), start, end);
+        return result.ptr().release();
     }
 
     // If single argument, return single group
@@ -217,12 +214,10 @@ Match_groups(PyObject *self_obj, PyObject *args) {
     cppy::ptr result_tuple(PyTuple_New(num_capturing_groups));
     if (!result_tuple) return nullptr;
     
-    LStrObject *where_lobj = reinterpret_cast<LStrObject*>(buf->where.get());
-    LStrIteratorBuffer<CharT> begin_iter(where_lobj, 0);
+    LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
     
-    cppy::ptr lstr_type_ptr(get_string_lstr_type());
-    if (!lstr_type_ptr) return nullptr;
-    PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
+    tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+    if (!lstr_type) return nullptr;
     
     for (Py_ssize_t i = 0; i < num_capturing_groups; ++i) {
         Py_ssize_t group_index = i + 1;  // Skip group 0
@@ -234,10 +229,10 @@ Match_groups(PyObject *self_obj, PyObject *args) {
             Py_ssize_t start = begin_iter.distance_to(buf->results[group_index].first);
             Py_ssize_t end = begin_iter.distance_to(buf->results[group_index].second);
             
-            LStrObject *lobj = (LStrObject*)PyType_GenericAlloc(lstr_type, 0);
+            tptr<LStrObject> lobj(PyType_GenericAlloc(lstr_type.get(), 0));
             if (!lobj) return nullptr;
-            lobj->buffer = new Slice1Buffer(buf->where.get(), start, end);
-            group_value = (PyObject*)lobj;
+            lobj->buffer = new Slice1Buffer(buf->where.ptr().get(), start, end);
+            group_value = lobj.ptr().release();
         }
         
         PyTuple_SET_ITEM(result_tuple.get(), i, group_value);
@@ -268,25 +263,20 @@ static PyObject* Match_start(PyObject *self_obj, PyObject *args) {
     }
 
     auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
-    PyObject *group_arg = nullptr;
-    if (!PyArg_ParseTuple(args, "|O", &group_arg)) return nullptr;
-
-    if (!group_arg) {
-        group_arg = PyLong_FromLong(0);
-        if (!group_arg) return nullptr;
-    } else {
-        Py_INCREF(group_arg);
+    cppy::ptr group_arg;
+    {
+        PyObject *temp = nullptr;
+        if (!PyArg_ParseTuple(args, "|O", &temp)) return nullptr;
+        group_arg = temp ? cppy::ptr(temp, true) : cppy::ptr(PyLong_FromLong(0));
     }
-
-    cppy::ptr group_arg_owner(group_arg);
+    if (!group_arg) return nullptr;
     
     try {
-        LStrObject *subject_lobj = (LStrObject*)(buf->where.get());
-        LStrIteratorBuffer<CharT> begin_iter(subject_lobj, 0);
+        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
         
         // Handle integer index
-        if (PyLong_Check(group_arg)) {
-            int group_index = PyLong_AsLong(group_arg);
+        if (PyLong_Check(group_arg.get())) {
+            int group_index = PyLong_AsLong(group_arg.get());
             if (group_index == -1 && PyErr_Occurred()) return nullptr;
             
             if (group_index < 0 || group_index >= static_cast<int>(buf->results.size())) {
@@ -303,18 +293,17 @@ static PyObject* Match_start(PyObject *self_obj, PyObject *args) {
         }
         
         // Handle L name
-        cppy::ptr lstr_type_ptr(get_string_lstr_type());
-        if (!lstr_type_ptr) return nullptr;
-        PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
+        tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+        if (!lstr_type) return nullptr;
         
-        int is_lstr = PyObject_IsInstance(group_arg, (PyObject*)lstr_type);
+        int is_lstr = PyObject_IsInstance(group_arg.get(), lstr_type.ptr().get());
         if (is_lstr == -1) return nullptr;
         if (is_lstr == 0) {
             PyErr_SetString(PyExc_TypeError, "group index or name must be int or lstring.L");
             return nullptr;
         }
         
-        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg);
+        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg.get());
         LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
         LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
         std::basic_string<CharT> group_name(name_begin, name_end);
@@ -341,25 +330,20 @@ static PyObject* Match_end(PyObject *self_obj, PyObject *args) {
     }
 
     auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
-    PyObject *group_arg = nullptr;
-    if (!PyArg_ParseTuple(args, "|O", &group_arg)) return nullptr;
-
-    if (!group_arg) {
-        group_arg = PyLong_FromLong(0);
-        if (!group_arg) return nullptr;
-    } else {
-        Py_INCREF(group_arg);
+    cppy::ptr group_arg;
+    {
+        PyObject *temp = nullptr;
+        if (!PyArg_ParseTuple(args, "|O", &temp)) return nullptr;
+        group_arg = temp ? cppy::ptr(temp, true) : cppy::ptr(PyLong_FromLong(0));
     }
-
-    cppy::ptr group_arg_owner(group_arg);
+    if (!group_arg) return nullptr;
     
     try {
-        LStrObject *subject_lobj = (LStrObject*)(buf->where.get());
-        LStrIteratorBuffer<CharT> begin_iter(subject_lobj, 0);
+        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
         
         // Handle integer index
-        if (PyLong_Check(group_arg)) {
-            int group_index = PyLong_AsLong(group_arg);
+        if (PyLong_Check(group_arg.get())) {
+            int group_index = PyLong_AsLong(group_arg.get());
             if (group_index == -1 && PyErr_Occurred()) return nullptr;
             
             if (group_index < 0 || group_index >= static_cast<int>(buf->results.size())) {
@@ -376,18 +360,17 @@ static PyObject* Match_end(PyObject *self_obj, PyObject *args) {
         }
         
         // Handle L name
-        cppy::ptr lstr_type_ptr(get_string_lstr_type());
-        if (!lstr_type_ptr) return nullptr;
-        PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
+        tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+        if (!lstr_type) return nullptr;
         
-        int is_lstr = PyObject_IsInstance(group_arg, (PyObject*)lstr_type);
+        int is_lstr = PyObject_IsInstance(group_arg.get(), lstr_type.ptr().get());
         if (is_lstr == -1) return nullptr;
         if (is_lstr == 0) {
             PyErr_SetString(PyExc_TypeError, "group index or name must be int or lstring.L");
             return nullptr;
         }
         
-        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg);
+        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg.get());
         LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
         LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
         std::basic_string<CharT> group_name(name_begin, name_end);
@@ -414,25 +397,20 @@ static PyObject* Match_span(PyObject *self_obj, PyObject *args) {
     }
 
     auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
-    PyObject *group_arg = nullptr;
-    if (!PyArg_ParseTuple(args, "|O", &group_arg)) return nullptr;
-
-    if (!group_arg) {
-        group_arg = PyLong_FromLong(0);
-        if (!group_arg) return nullptr;
-    } else {
-        Py_INCREF(group_arg);
+    cppy::ptr group_arg;
+    {
+        PyObject *temp = nullptr;
+        if (!PyArg_ParseTuple(args, "|O", &temp)) return nullptr;
+        group_arg = temp ? cppy::ptr(temp, true) : cppy::ptr(PyLong_FromLong(0));
     }
-
-    cppy::ptr group_arg_owner(group_arg);
+    if (!group_arg) return nullptr;
     
     try {
-        LStrObject *subject_lobj = (LStrObject*)(buf->where.get());
-        LStrIteratorBuffer<CharT> begin_iter(subject_lobj, 0);
+        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
         
         // Handle integer index
-        if (PyLong_Check(group_arg)) {
-            int group_index = PyLong_AsLong(group_arg);
+        if (PyLong_Check(group_arg.get())) {
+            int group_index = PyLong_AsLong(group_arg.get());
             if (group_index == -1 && PyErr_Occurred()) return nullptr;
             
             if (group_index < 0 || group_index >= static_cast<int>(buf->results.size())) {
@@ -459,18 +437,17 @@ static PyObject* Match_span(PyObject *self_obj, PyObject *args) {
         }
         
         // Handle L name
-        cppy::ptr lstr_type_ptr(get_string_lstr_type());
-        if (!lstr_type_ptr) return nullptr;
-        PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
+        tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+        if (!lstr_type) return nullptr;
         
-        int is_lstr = PyObject_IsInstance(group_arg, (PyObject*)lstr_type);
+        int is_lstr = PyObject_IsInstance(group_arg.get(), lstr_type.ptr().get());
         if (is_lstr == -1) return nullptr;
         if (is_lstr == 0) {
             PyErr_SetString(PyExc_TypeError, "group index or name must be int or lstring.L");
             return nullptr;
         }
         
-        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg);
+        LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg.get());
         LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
         LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
         std::basic_string<CharT> group_name(name_begin, name_end);
@@ -513,23 +490,20 @@ static PyObject* Match_repr(PyObject *self_obj) {
             return PyUnicode_FromString("<_lstring.re.Match object; no match>");
         }
 
-        LStrObject *subject_lobj = (LStrObject*)(buf->where.get());
-        LStrIteratorBuffer<CharT> begin_iter(subject_lobj, 0);
+        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
         Py_ssize_t start_pos = begin_iter.distance_to(buf->results[0].first);
         Py_ssize_t end_pos = begin_iter.distance_to(buf->results[0].second);
         
         // Get the matched string
-        cppy::ptr lstr_type_ptr(get_string_lstr_type());
-        if (!lstr_type_ptr) return nullptr;
-        PyTypeObject *lstr_type = reinterpret_cast<PyTypeObject*>(lstr_type_ptr.get());
+        tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+        if (!lstr_type) return nullptr;
         
-        cppy::ptr match_lobj((PyObject*)PyType_GenericAlloc(lstr_type, 0));
+        tptr<LStrObject> match_lobj(PyType_GenericAlloc(lstr_type.get(), 0));
         if (!match_lobj) return nullptr;
-        LStrObject *match_lobj_raw = reinterpret_cast<LStrObject*>(match_lobj.get());
-        match_lobj_raw->buffer = new Slice1Buffer(buf->where.get(), start_pos, end_pos);
+        match_lobj->buffer = new Slice1Buffer(buf->where.ptr().get(), start_pos, end_pos);
         
         // Convert to Python str for display
-        cppy::ptr match_str(PyObject_Str(match_lobj.get()));
+        cppy::ptr match_str(PyObject_Str(match_lobj.ptr().get()));
         if (!match_str) return nullptr;
         
         // Format: <re.Match object; span=(start, end), match='...'>

@@ -7,6 +7,7 @@
 
 #include "lstring.hxx"
 #include "buffer.hxx"
+#include "tptr.hxx"
 #include <cppy/ptr.h>
 
 /**
@@ -16,7 +17,7 @@
  */
 class Slice1Buffer : public Buffer {
 protected:
-    cppy::ptr lstr_obj;
+    tptr<LStrObject> lstr_obj;
     Py_ssize_t start_index;
     Py_ssize_t end_index;
 
@@ -31,7 +32,7 @@ public:
      * @param end End index (exclusive) within the base buffer.
      */
     Slice1Buffer(PyObject *lstr, Py_ssize_t start, Py_ssize_t end)
-        : lstr_obj(lstr, true), start_index(start), end_index(end), cached_kind(-1) {
+        : lstr_obj((LStrObject*)lstr, true), start_index(start), end_index(end), cached_kind(-1) {
     }
 
     /**
@@ -58,8 +59,7 @@ public:
     int unicode_kind() const override {
         if (cached_kind != -1) return cached_kind;
 
-        Buffer *buf = get_buffer(lstr_obj.get());
-        int original_kind = buf->unicode_kind();
+        int original_kind = lstr_obj->buffer->unicode_kind();
         if(original_kind == PyUnicode_1BYTE_KIND) {
             cached_kind = PyUnicode_1BYTE_KIND;
         } else if(original_kind == PyUnicode_2BYTE_KIND) {
@@ -96,8 +96,7 @@ public:
      * Maps to base buffer position `start_index + index`.
      */
     uint32_t value(Py_ssize_t index) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        return buf->value(start_index + index);
+        return lstr_obj->buffer->value(start_index + index);
     }
 
     /**
@@ -107,30 +106,26 @@ public:
      * into `target`.
      */
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        buf->copy(target, start_index + start, count);
+        lstr_obj->buffer->copy(target, start_index + start, count);
     }
     /**
      * @brief Copy a range of code points into a 16-bit target buffer.
      */
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        buf->copy(target, start_index + start, count);
+        lstr_obj->buffer->copy(target, start_index + start, count);
     }
     /**
      * @brief Copy a range of code points into an 8-bit target buffer.
      */
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        buf->copy(target, start_index + start, count);
+        lstr_obj->buffer->copy(target, start_index + start, count);
     }
 
     /**
      * @brief Produce a Python-level repr for the slice (e.g. "<inner>[start:end]").
      */
     PyObject* repr() const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        cppy::ptr inner( buf->repr() );
+        cppy::ptr inner( lstr_obj->buffer->repr() );
         if (!inner) return nullptr;
         PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd]", inner.get(), start_index, end_index);
         return result;
@@ -145,11 +140,10 @@ public:
         if (end > len) end = len;
         if (start >= end) return -1;
 
-        Buffer *buf = get_buffer(lstr_obj.get());
         // Map slice-relative range [start, end) to base buffer range [bstart, bend)
         Py_ssize_t bstart = start_index + start;
         Py_ssize_t bend = start_index + end;
-        Py_ssize_t pos = buf->findc(bstart, bend, ch);
+        Py_ssize_t pos = lstr_obj->buffer->findc(bstart, bend, ch);
         if (pos == -1) return -1;
         // convert base index back to slice-relative index
         return pos - start_index;
@@ -164,10 +158,9 @@ public:
         if (end > len) end = len;
         if (start >= end) return -1;
 
-        Buffer *buf = get_buffer(lstr_obj.get());
         Py_ssize_t bstart = start_index + start;
         Py_ssize_t bend = start_index + end;
-        Py_ssize_t pos = buf->rfindc(bstart, bend, ch);
+        Py_ssize_t pos = lstr_obj->buffer->rfindc(bstart, bend, ch);
         if (pos == -1) return -1;
         return pos - start_index;
     }
@@ -229,15 +222,14 @@ public:
      * @brief Return the code point at logical index `index` in the strided slice.
      */
     uint32_t value(Py_ssize_t index) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        return buf->value(start_index + index * step);
+        return lstr_obj->buffer->value(start_index + index * step);
     }
 
     /**
      * @brief Copy a strided range of code points into a 32-bit target buffer.
      */
     void copy(uint32_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
+        Buffer *buf = lstr_obj->buffer;
         for (Py_ssize_t i = 0; i < count; ++i) {
             target[i] = buf->value(start_index + (start + i) * step);
         }
@@ -246,7 +238,7 @@ public:
      * @brief Copy a strided range of code points into a 16-bit target buffer.
      */
     void copy(uint16_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
+        Buffer *buf = lstr_obj->buffer;
         for (Py_ssize_t i = 0; i < count; ++i) {
             target[i] = static_cast<uint16_t>(buf->value(start_index + (start + i) * step));
         }
@@ -255,7 +247,7 @@ public:
      * @brief Copy a strided range of code points into an 8-bit target buffer.
      */
     void copy(uint8_t *target, Py_ssize_t start, Py_ssize_t count) const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
+        Buffer *buf = lstr_obj->buffer;
         for (Py_ssize_t i = 0; i < count; ++i) {
             target[i] = static_cast<uint8_t>(buf->value(start_index + (start + i) * step));
         }
@@ -265,8 +257,7 @@ public:
      * @brief Produce a Python-level repr for the strided slice ("<inner>[start:end:step]").
      */
     PyObject* repr() const override {
-        Buffer *buf = get_buffer(lstr_obj.get());
-        cppy::ptr inner( buf->repr() );
+        cppy::ptr inner( lstr_obj->buffer->repr() );
         if (!inner) return nullptr;
         PyObject *result = PyUnicode_FromFormat("%U[%zd:%zd:%ld]", inner.get(), start_index, end_index, step);
         return result;
@@ -281,10 +272,9 @@ public:
         if (end > len) end = len;
         if (start >= end) return -1;
 
-        Buffer *buf = get_buffer(lstr_obj.get());
+        Buffer *buf = lstr_obj->buffer;
         for (Py_ssize_t i = start; i < end; ++i) {
-            Py_ssize_t base_idx = start_index + i * step;
-            uint32_t v = buf->value(base_idx);
+            uint32_t v = buf->value(start_index + i * step);
             if (v == ch) return i;
         }
         return -1;
@@ -299,12 +289,10 @@ public:
         if (end > len) end = len;
         if (start >= end) return -1;
 
-        Buffer *buf = get_buffer(lstr_obj.get());
+        Buffer *buf = lstr_obj->buffer;
         for (Py_ssize_t i = end - 1; i >= start; --i) {
-            Py_ssize_t base_idx = start_index + i * step;
-            uint32_t v = buf->value(base_idx);
+            uint32_t v = buf->value(start_index + i * step);
             if (v == ch) return i;
-            if (i == 0) break;
         }
         return -1;
     }

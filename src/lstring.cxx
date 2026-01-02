@@ -13,6 +13,7 @@
 #include "join_buffer.hxx"
 #include "mul_buffer.hxx"
 #include "slice_buffer.hxx"
+#include "tptr.hxx"
 
 /* Forward declarations of L type methods. */
 static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
@@ -188,9 +189,8 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     }
 
     PyTypeObject *type = Py_TYPE(self);
-    LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
+    tptr<LStrObject> result(type->tp_alloc(type, 0));
     if (!result) return nullptr;
-    cppy::ptr result_owner((PyObject*)result);
 
     try {
         if (step == 1) {
@@ -207,9 +207,9 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     }
 
     // Try to optimize/collapse small results
-    lstr_optimize(result);
+    lstr_optimize(result.get());
 
-    return result_owner.release();
+    return result.ptr().release();
 }
 
 /**
@@ -244,9 +244,7 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
             !PyType_IsSubtype(left_type, right_type) && 
             !PyType_IsSubtype(right_type, left_type)) {
             // Types are incompatible
-            cppy::ptr lt(PyObject_Type(left), true);
-            cppy::ptr rt(PyObject_Type(right), true);
-            PyErr_Format(PyExc_TypeError, "Operation %R + %R not supported", lt.get(), rt.get());
+            PyErr_Format(PyExc_TypeError, "Operation %R + %R not supported", left_type, right_type);
             return nullptr;
         }
         
@@ -261,29 +259,26 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     } else {
         type = Py_TYPE(left);
     }
-    cppy::ptr left_owner, right_owner;
+    tptr<LStrObject> left_owner, right_owner;
     if(left_is_str) {
-        PyObject *new_left = make_lstr_from_pystr(type, left);
-        if (!new_left) return nullptr;
-        left_owner = cppy::ptr(new_left);
-        right_owner = cppy::ptr(right, true);
+        left_owner = tptr<LStrObject>(make_lstr_from_pystr(type, left));
+        if (!left_owner) return nullptr;
+        right_owner = tptr<LStrObject>(right, true);
     } else if(right_is_str) {
-        PyObject *new_right = make_lstr_from_pystr(type, right);
-        if (!new_right) return nullptr;
-        right_owner = cppy::ptr(new_right);
-        left_owner = cppy::ptr(left, true);
+        right_owner = tptr<LStrObject>(make_lstr_from_pystr(type, right));
+        if (!right_owner) return nullptr;
+        left_owner = tptr<LStrObject>(left, true);
     } else {
-        left_owner = cppy::ptr(left, true);
-        right_owner = cppy::ptr(right, true);
+        left_owner = tptr<LStrObject>(left, true);
+        right_owner = tptr<LStrObject>(right, true);
     }
 
     // Allocate result object of the L type
-    LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
+    tptr<LStrObject> result(type->tp_alloc(type, 0));
     if (!result) return nullptr;
-    cppy::ptr result_owner((PyObject*)result);
 
     try {
-        result->buffer = new JoinBuffer(left_owner.get(), right_owner.get());
+        result->buffer = new JoinBuffer(left_owner.ptr().get(), right_owner.ptr().get());
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return nullptr;
@@ -293,9 +288,9 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     }
 
     // Try to optimize/collapse small results
-    lstr_optimize(result);
+    lstr_optimize(result.get());
 
-    return result_owner.release();
+    return result.ptr().release();
 }
 
 /**
@@ -333,9 +328,8 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
 
     // Allocate result
     PyTypeObject *type = Py_TYPE(lstr_obj);
-    LStrObject *result = (LStrObject*)type->tp_alloc(type, 0);
+    tptr<LStrObject> result(type->tp_alloc(type, 0));
     if (!result) return nullptr;
-    cppy::ptr result_owner((PyObject*)result);
 
     try {
         result->buffer = new MulBuffer(lstr_obj, repeat_count);
@@ -348,9 +342,9 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
     }
 
     // Try to optimize/collapse small results
-    lstr_optimize(result);
+    lstr_optimize(result.get());
 
-    return result_owner.release();
+    return result.ptr().release();
 }
 
 /**
@@ -407,7 +401,7 @@ static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
 static void LStrIter_dealloc(PyObject *it_obj) {
     LStrIterObject *it = (LStrIterObject*)it_obj;
     if (it->source) {
-        Py_DECREF((PyObject*)it->source);
+        cppy::decref(it->source);
         it->source = nullptr;
     }
     PyTypeObject *tp = Py_TYPE(it_obj);
@@ -449,31 +443,29 @@ static PyObject* LStr_iter(PyObject *self) {
     PyTypeObject *lstr_type = Py_TYPE(self);
 
     // Try to get cached iterator type from the L type object
-    PyObject *it_type = PyObject_GetAttrString((PyObject*)lstr_type, "_iterator_type");
+    tptr<PyTypeObject> it_type(PyObject_GetAttrString((PyObject*)lstr_type, "_iterator_type"));
     if (!it_type) {
         PyErr_Clear();
 
-        it_type = PyType_FromSpec(&LStrIter_spec);
+        it_type = tptr<PyTypeObject>(PyType_FromSpec(&LStrIter_spec));
         if (!it_type) return nullptr;
 
         // Cache iterator type on the L heap type object for reuse.
-        if (PyObject_SetAttrString((PyObject*)lstr_type, "_iterator_type", it_type) < 0) {
-            Py_DECREF(it_type);
+        if (PyObject_SetAttrString((PyObject*)lstr_type, "_iterator_type", it_type.ptr().get()) < 0) {
             return nullptr;
         }
     }
 
     // Create a new iterator instance
-    PyObject *it_obj = PyObject_CallObject(it_type, nullptr);
+    tptr<LStrIterObject> it_obj(PyObject_CallObject(it_type.ptr().get(), nullptr));
     if (!it_obj) return nullptr;
 
-    LStrIterObject *it = (LStrIterObject*)it_obj;
-    Py_INCREF(self);
-    it->source = (LStrObject*)self;
-    it->index = 0;
-    it->length = it->source->buffer->length();
+    // Iterator holds an owned reference to the source object to keep it alive
+    it_obj->source = (LStrObject*)cppy::incref(self);
+    it_obj->index = 0;
+    it_obj->length = it_obj->source->buffer->length();
 
-    return it_obj;
+    return it_obj.ptr().release();
 }
 
 /**
@@ -495,8 +487,7 @@ static PyObject* LStr_str(LStrObject *self) {
     if (buf->is_str()) {
         // Safe to dynamic_cast because StrBuffer overrides is_str()
         StrBuffer *sbuf = static_cast<StrBuffer*>(buf);
-        cppy::ptr py(sbuf->get_str(), true);
-        return py.release();
+        return cppy::incref(sbuf->get_str());
     }
 
     uint32_t len = buf->length();

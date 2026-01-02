@@ -25,6 +25,7 @@ ext_modules = [
             'src/mul_buffer.hxx',
             'src/slice_buffer.hxx',
             'src/str_buffer.hxx',
+            'src/tptr.hxx',
             'src/lstring.hxx',
             'src/lstring_utils.hxx',
             'src/lstring_re.hxx',
