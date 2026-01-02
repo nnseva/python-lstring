@@ -113,21 +113,6 @@ PyObject* make_lstr_from_pystr(PyTypeObject *type, PyObject *py_str) {
     return self.ptr().release();
 }
 
-// Convenience overload: take a Python str and construct an lstring.L instance
-// by importing the module and using its `L` type. Returns a new reference.
-PyObject* make_lstr_from_pystr(PyObject *py_str) {
-    if (!PyUnicode_Check(py_str)) {
-        PyErr_SetString(PyExc_TypeError, "py_str must be a str");
-        return nullptr;
-    }
-    cppy::ptr mod( PyImport_ImportModule("lstring") );
-    if (!mod) return nullptr;
-    cppy::ptr LType( PyObject_GetAttrString(mod.get(), "L") );
-    if (!LType) return nullptr;
-    // Call the two-arg version using borrowed pointer from LType.
-    return make_lstr_from_pystr((PyTypeObject*)LType.get(), py_str);
-}
-
 // Return a new reference to the lstring.L type (named lstr here).
 PyObject* get_string_lstr_type() {
     cppy::ptr mod( PyImport_ImportModule("_lstring") );

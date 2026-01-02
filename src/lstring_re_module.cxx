@@ -314,9 +314,9 @@ int lstring_re_mod_exec(PyObject *parent_module, const char *submodule_name) {
     }
     
     // Add the submodule to the parent module as attribute 're'
-    // PyModule_AddObject steals a reference on success, but PyDict_SetItemString
-    // already incremented refcount, so cppy::ptr's DECREF on scope exit balances it
-    if (PyModule_AddObject(parent_module, submodule_name, submodule.get()) < 0) {
+    // PyModule_AddObject steals a reference, so we need to increment refcount
+    // because cppy::ptr will also decrement it on scope exit
+    if (PyModule_AddObject(parent_module, submodule_name, cppy::incref(submodule.get())) < 0) {
         return -1;
     }
 

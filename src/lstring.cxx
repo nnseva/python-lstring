@@ -68,7 +68,7 @@ static PyType_Slot LStr_slots[] = {
  * Create a concrete type object for `L` from this spec.
  */
 PyType_Spec LStr_spec = {
-    "lstring.L",
+    "_lstring.L",
     sizeof(LStrObject),
     0,
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
@@ -351,12 +351,23 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
  *
  * Implements equality/ordering by delegating to the underlying Buffer
  * comparison. For EQ/NE a cheap hash comparison is attempted first.
+ * Comparison with str types is handled at Python level.
  */
 static PyObject* LStr_richcompare(PyObject *a, PyObject *b, int op) {
-    if (Py_TYPE(a) != Py_TYPE(b)) {
+    // Check if both are L instances (including subclasses)
+    // Find the base _lstring.L type by walking up from type_a
+    PyTypeObject *type_a = Py_TYPE(a);
+    PyTypeObject *base_type = type_a;
+    while (base_type->tp_base != nullptr && 
+           strcmp(base_type->tp_name, "_lstring.L") != 0) {
+        base_type = base_type->tp_base;
+    }
+    
+    // Check if b is also an instance of the base L type
+    if (PyObject_IsInstance(b, (PyObject*)base_type) != 1) {
         Py_RETURN_NOTIMPLEMENTED;
     }
-
+    
     LStrObject *la = (LStrObject*)a;
     LStrObject *lb = (LStrObject*)b;
     Buffer *ba = la->buffer;
@@ -431,7 +442,7 @@ PyType_Slot LStrIter_slots[] = {
 };
 
 PyType_Spec LStrIter_spec = {
-    "lstring._lstr_iterator",
+    "_lstring._lstr_iterator",
     sizeof(LStrIterObject),
     0,
     Py_TPFLAGS_DEFAULT,
