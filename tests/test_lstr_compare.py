@@ -60,5 +60,115 @@ class TestLStrComparisons(unittest.TestCase):
         self.assertFalse(self.e < self.a)
         self.assertTrue(self.e > self.a)
 
+
+class TestLStrMixedComparisons(unittest.TestCase):
+    """Tests for comparisons between L and str."""
+    
+    def test_equality_with_str(self):
+        """L can be compared for equality with str."""
+        self.assertTrue(lstring.L("abc") == "abc")
+        self.assertTrue("abc" == lstring.L("abc"))
+        self.assertFalse(lstring.L("abc") == "def")
+        self.assertFalse("def" == lstring.L("abc"))
+    
+    def test_inequality_with_str(self):
+        """L can be compared for inequality with str."""
+        self.assertTrue(lstring.L("abc") != "def")
+        self.assertTrue("def" != lstring.L("abc"))
+        self.assertFalse(lstring.L("abc") != "abc")
+        self.assertFalse("abc" != lstring.L("abc"))
+    
+    def test_less_than_with_str(self):
+        """L can be compared with < operator against str."""
+        self.assertTrue(lstring.L("a") < "b")
+        self.assertTrue("a" < lstring.L("b"))
+        self.assertFalse(lstring.L("b") < "a")
+        self.assertFalse("b" < lstring.L("a"))
+        
+        # Prefix comparisons
+        self.assertTrue(lstring.L("ab") < "abc")
+        self.assertTrue("ab" < lstring.L("abc"))
+    
+    def test_less_equal_with_str(self):
+        """L can be compared with <= operator against str."""
+        self.assertTrue(lstring.L("abc") <= "abc")
+        self.assertTrue("abc" <= lstring.L("abc"))
+        self.assertTrue(lstring.L("a") <= "b")
+        self.assertTrue("a" <= lstring.L("b"))
+        self.assertFalse(lstring.L("b") <= "a")
+        self.assertFalse("b" <= lstring.L("a"))
+    
+    def test_greater_than_with_str(self):
+        """L can be compared with > operator against str."""
+        self.assertTrue(lstring.L("b") > "a")
+        self.assertTrue("b" > lstring.L("a"))
+        self.assertFalse(lstring.L("a") > "b")
+        self.assertFalse("a" > lstring.L("b"))
+        
+        # Prefix comparisons
+        self.assertTrue(lstring.L("abc") > "ab")
+        self.assertTrue("abc" > lstring.L("ab"))
+    
+    def test_greater_equal_with_str(self):
+        """L can be compared with >= operator against str."""
+        self.assertTrue(lstring.L("abc") >= "abc")
+        self.assertTrue("abc" >= lstring.L("abc"))
+        self.assertTrue(lstring.L("b") >= "a")
+        self.assertTrue("b" >= lstring.L("a"))
+        self.assertFalse(lstring.L("a") >= "b")
+        self.assertFalse("a" >= lstring.L("b"))
+
+
+class TestLStrSubclassComparisons(unittest.TestCase):
+    """Tests for comparisons between L subclasses."""
+    
+    def setUp(self):
+        class SubL1(lstring.L):
+            pass
+        
+        class SubL2(lstring.L):
+            pass
+        
+        self.SubL1 = SubL1
+        self.SubL2 = SubL2
+    
+    def test_subclass_equality(self):
+        """Subclasses of L can be compared with each other."""
+        a = self.SubL1("abc")
+        b = self.SubL2("abc")
+        c = self.SubL1("def")
+        
+        self.assertTrue(a == b)
+        self.assertFalse(a == c)
+    
+    def test_subclass_ordering(self):
+        """Subclasses of L support ordering comparisons."""
+        a = self.SubL1("a")
+        b = self.SubL2("b")
+        
+        self.assertTrue(a < b)
+        self.assertTrue(b > a)
+        self.assertTrue(a <= b)
+        self.assertTrue(b >= a)
+    
+    def test_subclass_with_base(self):
+        """Subclass can be compared with base L class."""
+        a = self.SubL1("abc")
+        b = lstring.L("abc")
+        
+        self.assertTrue(a == b)
+        self.assertTrue(b == a)
+    
+    def test_subclass_with_str(self):
+        """Subclass can be compared with str."""
+        a = self.SubL1("abc")
+        
+        self.assertTrue(a == "abc")
+        self.assertTrue("abc" == a)
+        self.assertTrue(a < "b")
+        self.assertTrue("b" > a)
+
+
 if __name__ == "__main__":
     unittest.main()
+
