@@ -147,10 +147,15 @@ public:
 
     /**
      * @brief Lexicographic comparison between two buffers.
+     *
+     * Virtual method that allows derived classes to provide optimized
+     * implementations. The default implementation performs character-by-
+     * character comparison.
+     *
      * @param other Other buffer to compare with.
      * @return -1 if *this < other, 0 if equal, 1 if *this > other.
      */
-    int cmp(const Buffer* other) const {
+    virtual int cmp(const Buffer* other) const {
         Py_ssize_t len1 = length();
         Py_ssize_t len2 = other->length();
         Py_ssize_t minlen = (len1 < len2) ? len1 : len2;

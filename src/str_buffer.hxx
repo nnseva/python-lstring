@@ -135,6 +135,26 @@ public:
         PyObject *s = py_str.get();
         return PyUnicode_FindChar(s, (Py_UCS4)ch, start, end, -1);
     }
+
+    /**
+     * @brief Specialized comparison for StrBuffer.
+     *
+     * If the other buffer is also a string (is_str() == true), use
+     * PyUnicode_Compare for efficient Python string comparison.
+     * Otherwise, fall back to the base class implementation.
+     *
+     * @param other Other buffer to compare with.
+     * @return -1 if *this < other, 0 if equal, 1 if *this > other.
+     */
+    int cmp(const Buffer* other) const override {
+        if (other->is_str()) {
+            // Both are Python strings, use PyUnicode_Compare
+            const StrBuffer* other_str = static_cast<const StrBuffer*>(other);
+            return PyUnicode_Compare(get_str(), other_str->get_str());
+        }
+        // Fall back to base class implementation
+        return Buffer::cmp(other);
+    }
 };
 
 /**
