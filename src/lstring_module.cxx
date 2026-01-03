@@ -90,6 +90,17 @@ static int lstring_mod_exec(PyObject *module) {
         return -1;
     }
 
+    // Add CharClass constants
+    if (PyModule_AddIntConstant(module, "CHAR_SPACE", CHAR_SPACE) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_ALPHA", CHAR_ALPHA) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_DIGIT", CHAR_DIGIT) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_ALNUM", CHAR_ALNUM) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_LOWER", CHAR_LOWER) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_UPPER", CHAR_UPPER) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_DECIMAL", CHAR_DECIMAL) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_NUMERIC", CHAR_NUMERIC) < 0) return -1;
+    if (PyModule_AddIntConstant(module, "CHAR_PRINTABLE", CHAR_PRINTABLE) < 0) return -1;
+
     if (lstring_re_mod_exec(module) < 0) {
         return -1;
     }

@@ -6,6 +6,24 @@ exposing the L class and re submodule for lazy string operations.
 """
 
 import _lstring
+from enum import IntFlag
+
+
+class CharClass(IntFlag):
+    """
+    Character class flags for efficient character classification.
+    
+    These flags can be combined with bitwise OR to check multiple classes.
+    """
+    SPACE = _lstring.CHAR_SPACE
+    ALPHA = _lstring.CHAR_ALPHA
+    DIGIT = _lstring.CHAR_DIGIT
+    ALNUM = _lstring.CHAR_ALNUM
+    LOWER = _lstring.CHAR_LOWER
+    UPPER = _lstring.CHAR_UPPER
+    DECIMAL = _lstring.CHAR_DECIMAL
+    NUMERIC = _lstring.CHAR_NUMERIC
+    PRINTABLE = _lstring.CHAR_PRINTABLE
 
 
 class L(_lstring.L):
@@ -641,4 +659,4 @@ get_optimize_threshold = _lstring.get_optimize_threshold
 set_optimize_threshold = _lstring.set_optimize_threshold
 
 
-__all__ = ['L', 'get_optimize_threshold', 'set_optimize_threshold']
+__all__ = ['L', 'CharClass', 'get_optimize_threshold', 'set_optimize_threshold']

@@ -171,6 +171,62 @@ public:
     virtual Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const = 0;
 
     /**
+     * @brief Find first character matching character class(es) searching forward.
+     *
+     * Searches for a character that matches the specified character class mask
+     * between indices [start, end). Returns the index of the first matching
+     * character or -1 when not found.
+     *
+     * @param start Start index (inclusive)
+     * @param end End index (exclusive)
+     * @param class_mask Character class flags (can be combined with bitwise OR)
+     * @param invert If true, find first character NOT matching the class
+     * @return Index of first matching character, or -1 if not found
+     */
+    virtual Py_ssize_t findcc(Py_ssize_t start, Py_ssize_t end, uint32_t class_mask, bool invert = false) const {
+        if (start < 0) start = 0;
+        Py_ssize_t len = length();
+        if (end > len) end = len;
+        if (start >= end) return -1;
+        
+        for (Py_ssize_t i = start; i < end; ++i) {
+            bool matches = char_is(value(i), class_mask);
+            if (matches != invert) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * @brief Find first character matching character class(es) searching backward.
+     *
+     * Searches for a character that matches the specified character class mask
+     * between indices [start, end) from the right. Returns the index of the last
+     * matching character or -1 when not found.
+     *
+     * @param start Start index (inclusive)
+     * @param end End index (exclusive)
+     * @param class_mask Character class flags (can be combined with bitwise OR)
+     * @param invert If true, find last character NOT matching the class
+     * @return Index of last matching character, or -1 if not found
+     */
+    virtual Py_ssize_t rfindcc(Py_ssize_t start, Py_ssize_t end, uint32_t class_mask, bool invert = false) const {
+        if (start < 0) start = 0;
+        Py_ssize_t len = length();
+        if (end > len) end = len;
+        if (start >= end) return -1;
+        
+        for (Py_ssize_t i = end - 1; i >= start; --i) {
+            bool matches = char_is(value(i), class_mask);
+            if (matches != invert) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
      * @brief Compute or return a cached hash value for this buffer.
      * @return Py_hash_t hash value.
      */

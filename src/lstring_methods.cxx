@@ -15,6 +15,8 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_findcc(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_rfindcc(LStrObject *self, PyObject *args, PyObject *kwds);
 
 // Character classification methods
 static PyObject* LStr_isspace(LStrObject *self, PyObject *Py_UNUSED(ignored));
@@ -40,6 +42,8 @@ PyMethodDef LStr_methods[] = {
     {"rfind", (PyCFunction)LStr_rfind, METH_VARARGS | METH_KEYWORDS, "Find last occurrence like str.rfind(sub, start=None, end=None)"},
     {"findc", (PyCFunction)LStr_findc, METH_VARARGS | METH_KEYWORDS, "Find single code point: findc(ch, start=None, end=None)"},
     {"rfindc", (PyCFunction)LStr_rfindc, METH_VARARGS | METH_KEYWORDS, "Find single code point from right: rfindc(ch, start=None, end=None)"},
+    {"findcc", (PyCFunction)LStr_findcc, METH_VARARGS | METH_KEYWORDS, "Find character by class: findcc(class_mask, start=None, end=None, invert=False)"},
+    {"rfindcc", (PyCFunction)LStr_rfindcc, METH_VARARGS | METH_KEYWORDS, "Find character by class from right: rfindcc(class_mask, start=None, end=None, invert=False)"},
     {"isspace", (PyCFunction)LStr_isspace, METH_NOARGS, "Return True if all characters are whitespace, False otherwise"},
     {"isalpha", (PyCFunction)LStr_isalpha, METH_NOARGS, "Return True if all characters are alphabetic, False otherwise"},
     {"isdigit", (PyCFunction)LStr_isdigit, METH_NOARGS, "Return True if all characters are digits, False otherwise"},
@@ -592,3 +596,126 @@ static PyObject* LStr_istitle(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
     }
     return PyBool_FromLong(self->buffer->istitle());
 }
+
+/**
+ * @brief findcc(self, class_mask, start=None, end=None, invert=False)
+ * 
+ * Find first character matching (or not matching) the specified character class(es).
+ */
+static PyObject* LStr_findcc(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"class_mask", (char*)"start", (char*)"end", (char*)"invert", nullptr};
+    unsigned long class_mask;
+    PyObject *start_obj = Py_None;
+    PyObject *end_obj = Py_None;
+    int invert = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|OOp:findcc", kwlist,
+                                     &class_mask, &start_obj, &end_obj, &invert)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t buf_len = (Py_ssize_t)buf->length();
+
+    // Parse start/end similar to findc
+    Py_ssize_t start;
+    if (start_obj == Py_None) {
+        start = 0;
+    } else {
+        if (!PyLong_Check(start_obj)) {
+            PyErr_SetString(PyExc_TypeError, "start must be int or None");
+            return nullptr;
+        }
+        start = PyLong_AsSsize_t(start_obj);
+        if (start == -1 && PyErr_Occurred()) return nullptr;
+        if (start < 0) start += buf_len;
+    }
+
+    Py_ssize_t end;
+    if (end_obj == Py_None) {
+        end = buf_len;
+    } else {
+        if (!PyLong_Check(end_obj)) {
+            PyErr_SetString(PyExc_TypeError, "end must be int or None");
+            return nullptr;
+        }
+        end = PyLong_AsSsize_t(end_obj);
+        if (end == -1 && PyErr_Occurred()) return nullptr;
+        if (end < 0) end += buf_len;
+    }
+
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (start > buf_len) return PyLong_FromLong(-1);
+    if (end > buf_len) end = buf_len;
+    if (start >= end) return PyLong_FromLong(-1);
+
+    Py_ssize_t res = buf->findcc(start, end, (uint32_t)class_mask, invert != 0);
+    return PyLong_FromSsize_t(res);
+}
+
+/**
+ * @brief rfindcc(self, class_mask, start=None, end=None, invert=False)
+ * 
+ * Find last character matching (or not matching) the specified character class(es).
+ */
+static PyObject* LStr_rfindcc(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"class_mask", (char*)"start", (char*)"end", (char*)"invert", nullptr};
+    unsigned long class_mask;
+    PyObject *start_obj = Py_None;
+    PyObject *end_obj = Py_None;
+    int invert = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "k|OOp:rfindcc", kwlist,
+                                     &class_mask, &start_obj, &end_obj, &invert)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t buf_len = (Py_ssize_t)buf->length();
+
+    // Parse start/end similar to findc
+    Py_ssize_t start;
+    if (start_obj == Py_None) {
+        start = 0;
+    } else {
+        if (!PyLong_Check(start_obj)) {
+            PyErr_SetString(PyExc_TypeError, "start must be int or None");
+            return nullptr;
+        }
+        start = PyLong_AsSsize_t(start_obj);
+        if (start == -1 && PyErr_Occurred()) return nullptr;
+        if (start < 0) start += buf_len;
+    }
+
+    Py_ssize_t end;
+    if (end_obj == Py_None) {
+        end = buf_len;
+    } else {
+        if (!PyLong_Check(end_obj)) {
+            PyErr_SetString(PyExc_TypeError, "end must be int or None");
+            return nullptr;
+        }
+        end = PyLong_AsSsize_t(end_obj);
+        if (end == -1 && PyErr_Occurred()) return nullptr;
+        if (end < 0) end += buf_len;
+    }
+
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (start > buf_len) return PyLong_FromLong(-1);
+    if (end > buf_len) end = buf_len;
+    if (start >= end) return PyLong_FromLong(-1);
+
+    Py_ssize_t res = buf->rfindcc(start, end, (uint32_t)class_mask, invert != 0);
+    return PyLong_FromSsize_t(res);
+}
+
