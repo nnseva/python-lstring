@@ -171,6 +171,226 @@ public:
         return 0;
     }
 
+    /**
+     * @brief Check if all characters in the buffer are whitespace.
+     *
+     * Returns true if all characters are whitespace according to
+     * Py_UNICODE_ISSPACE, false otherwise. Returns false for empty buffers.
+     *
+     * @return true if all characters are whitespace, false otherwise.
+     */
+    virtual bool isspace() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            if (!Py_UNICODE_ISSPACE(value(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are alphabetic.
+     *
+     * Returns true if all characters are alphabetic according to
+     * Py_UNICODE_ISALPHA, false otherwise. Returns false for empty buffers.
+     *
+     * @return true if all characters are alphabetic, false otherwise.
+     */
+    virtual bool isalpha() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            if (!Py_UNICODE_ISALPHA(value(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are digits.
+     *
+     * Returns true if all characters are digits according to
+     * Py_UNICODE_ISDIGIT, false otherwise. Returns false for empty buffers.
+     *
+     * @return true if all characters are digits, false otherwise.
+     */
+    virtual bool isdigit() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            if (!Py_UNICODE_ISDIGIT(value(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are alphanumeric.
+     *
+     * Returns true if all characters are alphanumeric according to
+     * Py_UNICODE_ISALNUM, false otherwise. Returns false for empty buffers.
+     *
+     * @return true if all characters are alphanumeric, false otherwise.
+     */
+    virtual bool isalnum() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            if (!Py_UNICODE_ISALNUM(value(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are uppercase.
+     *
+     * Returns true if all cased characters are uppercase according to
+     * Py_UNICODE_ISUPPER and there is at least one cased character.
+     * Returns false for empty buffers.
+     *
+     * @return true if all cased characters are uppercase, false otherwise.
+     */
+    virtual bool isupper() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        bool has_cased = false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            Py_UCS4 ch = value(i);
+            if (Py_UNICODE_ISLOWER(ch)) {
+                return false;
+            }
+            if (Py_UNICODE_ISUPPER(ch)) {
+                has_cased = true;
+            }
+        }
+        return has_cased;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are lowercase.
+     *
+     * Returns true if all cased characters are lowercase according to
+     * Py_UNICODE_ISLOWER and there is at least one cased character.
+     * Returns false for empty buffers.
+     *
+     * @return true if all cased characters are lowercase, false otherwise.
+     */
+    virtual bool islower() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        bool has_cased = false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            Py_UCS4 ch = value(i);
+            if (Py_UNICODE_ISUPPER(ch)) {
+                return false;
+            }
+            if (Py_UNICODE_ISLOWER(ch)) {
+                has_cased = true;
+            }
+        }
+        return has_cased;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are decimal digits.
+     *
+     * Returns true if all characters are decimal digits according to
+     * Py_UNICODE_ISDECIMAL, false otherwise. Returns false for empty buffers.
+     *
+     * @return true if all characters are decimal digits, false otherwise.
+     */
+    virtual bool isdecimal() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            if (!Py_UNICODE_ISDECIMAL(value(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are numeric.
+     *
+     * Returns true if all characters are numeric according to
+     * Py_UNICODE_ISNUMERIC, false otherwise. Returns false for empty buffers.
+     *
+     * @return true if all characters are numeric, false otherwise.
+     */
+    virtual bool isnumeric() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            if (!Py_UNICODE_ISNUMERIC(value(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Check if all characters in the buffer are printable.
+     *
+     * Returns true if all characters are printable according to
+     * Py_UNICODE_ISPRINTABLE, false otherwise. Returns true for empty buffers
+     * (consistent with Python's str.isprintable()).
+     *
+     * @return true if all characters are printable or buffer is empty, false otherwise.
+     */
+    virtual bool isprintable() const {
+        Py_ssize_t len = length();
+        if (len == 0) return true;  // Empty string is considered printable
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            if (!Py_UNICODE_ISPRINTABLE(value(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Check if the buffer is in titlecase.
+     *
+     * Returns true if the buffer is titlecased: uppercase characters may
+     * only follow uncased characters and lowercase characters only cased ones.
+     * Returns false for empty buffers.
+     *
+     * @return true if the buffer is titlecased, false otherwise.
+     */
+    virtual bool istitle() const {
+        Py_ssize_t len = length();
+        if (len == 0) return false;
+        bool previous_is_cased = false;
+        bool has_cased = false;
+        
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            Py_UCS4 ch = value(i);
+            
+            if (Py_UNICODE_ISUPPER(ch) || Py_UNICODE_ISTITLE(ch)) {
+                if (previous_is_cased) {
+                    return false;
+                }
+                previous_is_cased = true;
+                has_cased = true;
+            } else if (Py_UNICODE_ISLOWER(ch)) {
+                if (!previous_is_cased) {
+                    return false;
+                }
+                has_cased = true;
+            } else {
+                previous_is_cased = false;
+            }
+        }
+        return has_cased;
+    }
+
 private:
     /**
      * @brief Compute the hash value for the buffer contents.

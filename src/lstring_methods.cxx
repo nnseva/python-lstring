@@ -16,6 +16,18 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds);
 
+// Character classification methods
+static PyObject* LStr_isspace(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_isalpha(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_isdigit(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_isalnum(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_isupper(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_islower(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_isdecimal(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_isnumeric(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_isprintable(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_istitle(LStrObject *self, PyObject *Py_UNUSED(ignored));
+
 /**
  * @brief Method table for the L type.
  *
@@ -28,6 +40,16 @@ PyMethodDef LStr_methods[] = {
     {"rfind", (PyCFunction)LStr_rfind, METH_VARARGS | METH_KEYWORDS, "Find last occurrence like str.rfind(sub, start=None, end=None)"},
     {"findc", (PyCFunction)LStr_findc, METH_VARARGS | METH_KEYWORDS, "Find single code point: findc(ch, start=None, end=None)"},
     {"rfindc", (PyCFunction)LStr_rfindc, METH_VARARGS | METH_KEYWORDS, "Find single code point from right: rfindc(ch, start=None, end=None)"},
+    {"isspace", (PyCFunction)LStr_isspace, METH_NOARGS, "Return True if all characters are whitespace, False otherwise"},
+    {"isalpha", (PyCFunction)LStr_isalpha, METH_NOARGS, "Return True if all characters are alphabetic, False otherwise"},
+    {"isdigit", (PyCFunction)LStr_isdigit, METH_NOARGS, "Return True if all characters are digits, False otherwise"},
+    {"isalnum", (PyCFunction)LStr_isalnum, METH_NOARGS, "Return True if all characters are alphanumeric, False otherwise"},
+    {"isupper", (PyCFunction)LStr_isupper, METH_NOARGS, "Return True if all cased characters are uppercase, False otherwise"},
+    {"islower", (PyCFunction)LStr_islower, METH_NOARGS, "Return True if all cased characters are lowercase, False otherwise"},
+    {"isdecimal", (PyCFunction)LStr_isdecimal, METH_NOARGS, "Return True if all characters are decimal digits, False otherwise"},
+    {"isnumeric", (PyCFunction)LStr_isnumeric, METH_NOARGS, "Return True if all characters are numeric, False otherwise"},
+    {"isprintable", (PyCFunction)LStr_isprintable, METH_NOARGS, "Return True if all characters are printable, False otherwise"},
+    {"istitle", (PyCFunction)LStr_istitle, METH_NOARGS, "Return True if the string is titlecased, False otherwise"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -458,4 +480,115 @@ static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds) {
 
     Py_ssize_t res = buf->rfindc(start, end, ch);
     return PyLong_FromSsize_t(res);
+}
+
+
+/**
+ * @brief isspace() method: check if all characters are whitespace.
+ */
+static PyObject* LStr_isspace(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isspace());
+}
+
+/**
+ * @brief isalpha() method: check if all characters are alphabetic.
+ */
+static PyObject* LStr_isalpha(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isalpha());
+}
+
+/**
+ * @brief isdigit() method: check if all characters are digits.
+ */
+static PyObject* LStr_isdigit(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isdigit());
+}
+
+/**
+ * @brief isalnum() method: check if all characters are alphanumeric.
+ */
+static PyObject* LStr_isalnum(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isalnum());
+}
+
+/**
+ * @brief isupper() method: check if all cased characters are uppercase.
+ */
+static PyObject* LStr_isupper(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isupper());
+}
+
+/**
+ * @brief islower() method: check if all cased characters are lowercase.
+ */
+static PyObject* LStr_islower(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->islower());
+}
+
+/**
+ * @brief isdecimal() method: check if all characters are decimal digits.
+ */
+static PyObject* LStr_isdecimal(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isdecimal());
+}
+
+/**
+ * @brief isnumeric() method: check if all characters are numeric.
+ */
+static PyObject* LStr_isnumeric(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isnumeric());
+}
+
+/**
+ * @brief isprintable() method: check if all characters are printable.
+ */
+static PyObject* LStr_isprintable(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->isprintable());
+}
+
+/**
+ * @brief istitle() method: check if the string is titlecased.
+ */
+static PyObject* LStr_istitle(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->buffer->istitle());
 }
