@@ -436,6 +436,204 @@ class L(_lstring.L):
         
         # Join segments without separator
         return L('').join(segments())
+    
+    def split(self, sep=None, maxsplit=-1):
+        """
+        Split string by separator.
+        
+        Args:
+            sep: Separator to split by (str or L instance, or None for whitespace)
+            maxsplit: Maximum number of splits (default: -1 = all)
+        
+        Returns:
+            list: List of L instances
+        
+        Examples:
+            >>> L('a,b,c').split(',')
+            [L('a'), L('b'), L('c')]
+            >>> L('a  b  c').split()
+            [L('a'), L('b'), L('c')]
+            >>> L('a,b,c').split(',', 1)
+            [L('a'), L('b,c')]
+        """
+        # Split by whitespace if sep is None
+        if sep is None:
+            return self._split_whitespace(maxsplit)
+        
+        # Convert sep to L if it's a string
+        if isinstance(sep, str):
+            sep = L(sep)
+        elif not isinstance(sep, _lstring.L):
+            raise TypeError(f"split() argument must be str or L, not {type(sep).__name__}")
+        
+        # Empty separator is not allowed
+        sep_len = len(sep)
+        if sep_len == 0:
+            raise ValueError("empty separator")
+        
+        # Generate segments by splitting on separator
+        def segments():
+            last_end = 0
+            splits_done = 0
+            max_splits = maxsplit if maxsplit >= 0 else float('inf')
+            
+            while splits_done < max_splits:
+                found = self.find(sep, last_end)
+                if found == -1:
+                    break
+                
+                # Yield segment before separator (may be empty)
+                yield self[last_end:found]
+                last_end = found + sep_len
+                splits_done += 1
+            
+            # Yield final segment
+            yield self[last_end:]
+        
+        return list(segments())
+    
+    def _split_whitespace(self, maxsplit=-1):
+        """
+        Split string by whitespace, merging consecutive whitespace.
+        
+        Args:
+            maxsplit: Maximum number of splits (default: -1 = all)
+        
+        Returns:
+            list: List of L instances (non-empty)
+        """
+        def segments():
+            length = len(self)
+            pos = 0
+            splits_done = 0
+            max_splits = maxsplit if maxsplit >= 0 else float('inf')
+            
+            while pos < length and splits_done < max_splits:
+                # Skip leading whitespace
+                while pos < length and self[pos].isspace():
+                    pos += 1
+                
+                if pos >= length:
+                    break
+                
+                # Find end of non-whitespace segment
+                start = pos
+                while pos < length and not self[pos].isspace():
+                    pos += 1
+                
+                # Yield segment
+                yield self[start:pos]
+                splits_done += 1
+            
+            # If we hit maxsplit, add the rest as final segment
+            if splits_done >= max_splits and pos < length:
+                # Skip leading whitespace of final segment
+                while pos < length and self[pos].isspace():
+                    pos += 1
+                
+                if pos < length:
+                    yield self[pos:]
+        
+        return list(segments())
+    
+    def rsplit(self, sep=None, maxsplit=-1):
+        """
+        Split string by separator from the right.
+        
+        Args:
+            sep: Separator to split by (str or L instance, or None for whitespace)
+            maxsplit: Maximum number of splits (default: -1 = all)
+        
+        Returns:
+            list: List of L instances
+        
+        Examples:
+            >>> L('a,b,c').rsplit(',')
+            [L('a'), L('b'), L('c')]
+            >>> L('a,b,c').rsplit(',', 1)
+            [L('a,b'), L('c')]
+        """
+        # Split by whitespace if sep is None
+        if sep is None:
+            return self._rsplit_whitespace(maxsplit)
+        
+        # Convert sep to L if it's a string
+        if isinstance(sep, str):
+            sep = L(sep)
+        elif not isinstance(sep, _lstring.L):
+            raise TypeError(f"rsplit() argument must be str or L, not {type(sep).__name__}")
+        
+        # Empty separator is not allowed
+        sep_len = len(sep)
+        if sep_len == 0:
+            raise ValueError("empty separator")
+        
+        # Generate segments by splitting on separator from right
+        def segments():
+            last_start = len(self)
+            splits_done = 0
+            max_splits = maxsplit if maxsplit >= 0 else float('inf')
+            
+            while splits_done < max_splits:
+                found = self.rfind(sep, 0, last_start)
+                if found == -1:
+                    break
+                
+                # Yield segment after separator (may be empty)
+                yield self[found + sep_len:last_start]
+                last_start = found
+                splits_done += 1
+            
+            # Yield final segment (leftmost part)
+            yield self[:last_start]
+        
+        # Reverse result since we built it from right to left
+        return list(reversed(list(segments())))
+    
+    def _rsplit_whitespace(self, maxsplit=-1):
+        """
+        Split string by whitespace from the right, merging consecutive whitespace.
+        
+        Args:
+            maxsplit: Maximum number of splits (default: -1 = all)
+        
+        Returns:
+            list: List of L instances (non-empty)
+        """
+        def segments():
+            length = len(self)
+            pos = length
+            splits_done = 0
+            max_splits = maxsplit if maxsplit >= 0 else float('inf')
+            
+            while pos > 0 and splits_done < max_splits:
+                # Skip trailing whitespace
+                while pos > 0 and self[pos-1].isspace():
+                    pos -= 1
+                
+                if pos <= 0:
+                    break
+                
+                # Find start of non-whitespace segment
+                end = pos
+                while pos > 0 and not self[pos-1].isspace():
+                    pos -= 1
+                
+                # Yield segment
+                yield self[pos:end]
+                splits_done += 1
+            
+            # If we hit maxsplit, add the rest as final segment
+            if splits_done >= max_splits and pos > 0:
+                # Skip trailing whitespace of final segment
+                while pos > 0 and self[pos-1].isspace():
+                    pos -= 1
+                
+                if pos > 0:
+                    yield self[:pos]
+        
+        # Reverse result since we built it from right to left
+        return list(reversed(list(segments())))
 
 
 # Re-export utility functions from _lstring
