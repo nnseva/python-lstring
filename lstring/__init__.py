@@ -527,17 +527,22 @@ class L(_lstring.L):
             max_splits = maxsplit if maxsplit >= 0 else float('inf')
             
             while pos < length and splits_done < max_splits:
-                # Skip leading whitespace
-                while pos < length and self[pos].isspace():
-                    pos += 1
+                # Skip leading whitespace using findcc
+                non_space = self.findcc(CharClass.SPACE, pos, length, invert=True)
+                if non_space == -1:
+                    break
+                pos = non_space
                 
                 if pos >= length:
                     break
                 
-                # Find end of non-whitespace segment
+                # Find end of non-whitespace segment using findcc
                 start = pos
-                while pos < length and not self[pos].isspace():
-                    pos += 1
+                space = self.findcc(CharClass.SPACE, pos, length)
+                if space == -1:
+                    pos = length
+                else:
+                    pos = space
                 
                 # Yield segment
                 yield self[start:pos]
@@ -545,12 +550,10 @@ class L(_lstring.L):
             
             # If we hit maxsplit, add the rest as final segment
             if splits_done >= max_splits and pos < length:
-                # Skip leading whitespace of final segment
-                while pos < length and self[pos].isspace():
-                    pos += 1
-                
-                if pos < length:
-                    yield self[pos:]
+                # Skip leading whitespace of final segment using findcc
+                non_space = self.findcc(CharClass.SPACE, pos, length, invert=True)
+                if non_space != -1:
+                    yield self[non_space:]
         
         return list(segments())
     
@@ -625,30 +628,37 @@ class L(_lstring.L):
             max_splits = maxsplit if maxsplit >= 0 else float('inf')
             
             while pos > 0 and splits_done < max_splits:
-                # Skip trailing whitespace
-                while pos > 0 and self[pos-1].isspace():
-                    pos -= 1
+                # Skip trailing whitespace using rfindcc
+                non_space = self.rfindcc(CharClass.SPACE, 0, pos, invert=True)
+                if non_space == -1:
+                    break
+                pos = non_space + 1  # rfindcc returns index, we need position after it
                 
                 if pos <= 0:
                     break
                 
-                # Find start of non-whitespace segment
+                # Find start of non-whitespace segment using rfindcc
                 end = pos
-                while pos > 0 and not self[pos-1].isspace():
-                    pos -= 1
+                space = self.rfindcc(CharClass.SPACE, 0, pos)
+                if space == -1:
+                    pos = 0
+                else:
+                    pos = space + 1  # Position after the space
                 
                 # Yield segment
                 yield self[pos:end]
                 splits_done += 1
-            
-            # If we hit maxsplit, add the rest as final segment
-            if splits_done >= max_splits and pos > 0:
-                # Skip trailing whitespace of final segment
-                while pos > 0 and self[pos-1].isspace():
-                    pos -= 1
                 
-                if pos > 0:
-                    yield self[:pos]
+                # Move position to before the whitespace we just found
+                if space != -1:
+                    pos = space
+            
+            # If we hit maxsplit, add the rest as final segment (everything remaining)
+            if splits_done >= max_splits and pos > 0:
+                # Find the last non-space character
+                non_space = self.rfindcc(CharClass.SPACE, 0, pos, invert=True)
+                if non_space != -1:
+                    yield self[:non_space + 1]
         
         # Reverse result since we built it from right to left
         return list(reversed(list(segments())))
