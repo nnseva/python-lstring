@@ -42,6 +42,43 @@ protected:
         return reinterpret_cast<const uint32_t*>(PyUnicode_DATA(s));
     }
 
+    /**
+     * @brief Helper to check titlecase property for a range of characters.
+     *
+     * Checks if characters in range [0, check_len) satisfy titlecase rules:
+     * uppercase/titlecase characters may only follow uncased characters,
+     * lowercase characters may only follow cased characters.
+     *
+     * @param check_len Number of characters to check.
+     * @return true if range is titlecased and has at least one cased character.
+     */
+    bool check_istitle_range(Py_ssize_t check_len) const {
+        if (check_len == 0) return false;
+        bool previous_is_cased = false;
+        bool has_cased = false;
+        
+        for (Py_ssize_t i = 0; i < check_len; ++i) {
+            Py_UCS4 ch = value(i);
+            
+            if (Py_UNICODE_ISUPPER(ch) || Py_UNICODE_ISTITLE(ch)) {
+                if (previous_is_cased) {
+                    return false;
+                }
+                previous_is_cased = true;
+                has_cased = true;
+            } else if (Py_UNICODE_ISLOWER(ch)) {
+                if (!previous_is_cased) {
+                    return false;
+                }
+                previous_is_cased = true;
+                has_cased = true;
+            } else {
+                previous_is_cased = false;
+            }
+        }
+        return has_cased;
+    }
+
     Py_hash_t cached_hash;  // cache for computed hash
 
 public:
@@ -365,30 +402,7 @@ public:
      * @return true if the buffer is titlecased, false otherwise.
      */
     virtual bool istitle() const {
-        Py_ssize_t len = length();
-        if (len == 0) return false;
-        bool previous_is_cased = false;
-        bool has_cased = false;
-        
-        for (Py_ssize_t i = 0; i < len; ++i) {
-            Py_UCS4 ch = value(i);
-            
-            if (Py_UNICODE_ISUPPER(ch) || Py_UNICODE_ISTITLE(ch)) {
-                if (previous_is_cased) {
-                    return false;
-                }
-                previous_is_cased = true;
-                has_cased = true;
-            } else if (Py_UNICODE_ISLOWER(ch)) {
-                if (!previous_is_cased) {
-                    return false;
-                }
-                has_cased = true;
-            } else {
-                previous_is_cased = false;
-            }
-        }
-        return has_cased;
+        return check_istitle_range(length());
     }
 
 private:

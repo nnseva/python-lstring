@@ -155,6 +155,62 @@ public:
         // Fall back to base class implementation
         return Buffer::cmp(other);
     }
+
+    /**
+     * @brief Character classification methods using Python string methods.
+     *
+     * These override the base Buffer implementations with optimized
+     * Python native string methods.
+     */
+    bool isspace() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isspace", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool isalpha() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isalpha", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool isdigit() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isdigit", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool isalnum() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isalnum", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool isupper() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isupper", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool islower() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "islower", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool isdecimal() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isdecimal", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool isnumeric() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isnumeric", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool isprintable() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "isprintable", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
+
+    bool istitle() const override {
+        cppy::ptr result(PyObject_CallMethod(py_str.get(), "istitle", nullptr));
+        return result && PyObject_IsTrue(result.get());
+    }
 };
 
 /**

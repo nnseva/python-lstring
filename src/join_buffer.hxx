@@ -215,6 +215,44 @@ public:
 
         return -1;
     }
+
+    /**
+     * @brief Character classification methods with delegation to left/right buffers.
+     *
+     * For non-context-dependent methods (isspace, isalpha, isdigit, isalnum,
+     * isdecimal, isnumeric, isprintable), we can simply check that both
+     * left and right buffers satisfy the condition.
+     *
+     * Context-dependent methods (isupper, islower, istitle) rely on the
+     * base class implementation as they require positional information.
+     */
+    bool isspace() const override {
+        return left_obj->buffer->isspace() && right_obj->buffer->isspace();
+    }
+
+    bool isalpha() const override {
+        return left_obj->buffer->isalpha() && right_obj->buffer->isalpha();
+    }
+
+    bool isdigit() const override {
+        return left_obj->buffer->isdigit() && right_obj->buffer->isdigit();
+    }
+
+    bool isalnum() const override {
+        return left_obj->buffer->isalnum() && right_obj->buffer->isalnum();
+    }
+
+    bool isdecimal() const override {
+        return left_obj->buffer->isdecimal() && right_obj->buffer->isdecimal();
+    }
+
+    bool isnumeric() const override {
+        return left_obj->buffer->isnumeric() && right_obj->buffer->isnumeric();
+    }
+
+    bool isprintable() const override {
+        return left_obj->buffer->isprintable() && right_obj->buffer->isprintable();
+    }
 };
 
 #endif // JOIN_BUFFER_HXX

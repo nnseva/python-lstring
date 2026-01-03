@@ -223,6 +223,71 @@ public:
         }
         return -1;
     }
+
+    /**
+     * @brief Character classification methods with delegation to base buffer.
+     *
+     * If a property holds for all characters in the base string, it holds
+     * for all characters in all repetitions. We delegate to the base buffer.
+     * 
+     * Note: istitle() is not delegated as it depends on character positions
+     * and can fail at repetition boundaries.
+     */
+    bool isspace() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->isspace();
+    }
+
+    bool isalpha() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->isalpha();
+    }
+
+    bool isdigit() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->isdigit();
+    }
+
+    bool isalnum() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->isalnum();
+    }
+
+    bool isupper() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->isupper();
+    }
+
+    bool islower() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->islower();
+    }
+
+    bool isdecimal() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->isdecimal();
+    }
+
+    bool isnumeric() const override {
+        if (repeat_count == 0) return false;
+        return lstr_obj->buffer->isnumeric();
+    }
+
+    bool isprintable() const override {
+        if (repeat_count == 0) return true;  // Empty string is printable
+        return lstr_obj->buffer->isprintable();
+    }
+
+    bool istitle() const override {
+        if (repeat_count == 0) return false;
+        if (repeat_count == 1) return lstr_obj->buffer->istitle();
+        
+        // For repeat_count >= 2, check first two repetitions (includes boundary)
+        Py_ssize_t base_len = lstr_obj->buffer->length();
+        if (base_len == 0) return false;
+        
+        return check_istitle_range(2 * base_len);
+    }
 };
 
 #endif // MUL_BUFFER_HXX
