@@ -1204,6 +1204,89 @@ class L(_lstring.L):
         if start == 0 and end == length - 1:  # No chars to strip
             return self
         return self[start:end + 1]
+    
+    def expandtabs(self, tabsize=8):
+        """
+        Return a copy with tabs expanded to spaces.
+        
+        Tabs are replaced with spaces to reach the next tab stop position.
+        Tab stops occur at multiples of tabsize (default 8).
+        Newlines reset the column position to 0.
+        
+        Args:
+            tabsize: Number of spaces per tab stop (default: 8)
+        
+        Returns:
+            L: String with tabs expanded to spaces
+        
+        Examples:
+            >>> L('hello\\tworld').expandtabs()
+            L('hello   world')  # Tab expands to 3 spaces (8 - 5)
+            >>> L('a\\tb\\tc').expandtabs(4)
+            L('a   b   c')  # Tabs expand to 3 spaces each
+            >>> L('\\t\\t').expandtabs(4)
+            L('        ')  # Each tab becomes 4 spaces
+        """
+        if tabsize <= 0:
+            # When tabsize is 0 or negative, just remove tabs
+            return self.replace(L('\t'), L(''))
+        
+        length = len(self)
+        if length == 0:
+            return self
+        
+        # Character set for search: tab and newline characters
+        search_chars = L('\t\n\r')
+        
+        def generate_parts():
+            """Generator that yields slices and space strings."""
+            pos = 0
+            column = 0
+            
+            while pos < length:
+                # Find next tab or newline
+                next_pos = self.findcs(search_chars, pos, length)
+                
+                if next_pos == -1:
+                    # No more special chars, yield rest of string
+                    if pos < length:
+                        yield self[pos:]
+                    break
+                
+                # Yield slice up to special char (if any)
+                if next_pos > pos:
+                    slice_part = self[pos:next_pos]
+                    yield slice_part
+                    column += next_pos - pos
+                
+                # Get the special character
+                char = str(self[next_pos])
+                
+                if char == '\t':
+                    # Calculate spaces needed to reach next tab stop
+                    spaces_needed = tabsize - (column % tabsize)
+                    yield L(' ') * spaces_needed
+                    column += spaces_needed
+                    pos = next_pos + 1
+                elif char == '\n':
+                    # Newline resets column
+                    yield self[next_pos:next_pos + 1]
+                    column = 0
+                    pos = next_pos + 1
+                elif char == '\r':
+                    # Check for \r\n
+                    if next_pos + 1 < length and str(self[next_pos + 1]) == '\n':
+                        # \r\n - yield both, reset column
+                        yield self[next_pos:next_pos + 2]
+                        column = 0
+                        pos = next_pos + 2
+                    else:
+                        # Just \r - reset column
+                        yield self[next_pos:next_pos + 1]
+                        column = 0
+                        pos = next_pos + 1
+        
+        return L('').join(generate_parts())
 
 
 # Re-export utility functions from _lstring
