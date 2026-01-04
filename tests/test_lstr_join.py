@@ -6,6 +6,16 @@ from lstring import L
 class TestLStringJoin(unittest.TestCase):
     """Test cases for L.join() method"""
     
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
+    
     def test_join_with_separator(self):
         """Test join with non-empty separator"""
         result = L(', ').join(['a', 'b', 'c'])

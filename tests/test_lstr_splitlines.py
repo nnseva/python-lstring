@@ -4,10 +4,21 @@ Tests for L.splitlines method
 
 import unittest
 from lstring import L
+import lstring
 
 
 class TestLStrSplitlines(unittest.TestCase):
-    """Tests for L.splitlines method"""
+    """Tests for L.splitlines() method"""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
     
     def test_splitlines_basic_lf(self):
         """Test basic splitlines with LF (\\n)"""

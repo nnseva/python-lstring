@@ -914,6 +914,89 @@ class L(_lstring.L):
             if isinstance(sep, str):
                 sep = L(sep)
             return (parts[0], sep, parts[1])
+    
+    def lower(self):
+        """
+        Return a copy with all characters converted to lowercase.
+        
+        Returns:
+            L: Lowercase version of the string
+        
+        Examples:
+            >>> L('HELLO World').lower()
+            L('hello world')
+        """
+        return L(str(self).lower())
+    
+    def upper(self):
+        """
+        Return a copy with all characters converted to uppercase.
+        
+        Returns:
+            L: Uppercase version of the string
+        
+        Examples:
+            >>> L('hello World').upper()
+            L('HELLO WORLD')
+        """
+        return L(str(self).upper())
+    
+    def casefold(self):
+        """
+        Return a casefolded copy for caseless matching.
+        
+        Casefolding is similar to lowercasing but more aggressive,
+        suitable for caseless string matching.
+        
+        Returns:
+            L: Casefolded version of the string
+        
+        Examples:
+            >>> L('ß').casefold()
+            L('ss')
+            >>> L('HELLO').casefold()
+            L('hello')
+        """
+        return L(str(self).casefold())
+    
+    def capitalize(self):
+        """
+        Return a copy with first character capitalized and the rest lowercased.
+        
+        Returns:
+            L: Capitalized version of the string
+        
+        Examples:
+            >>> L('hello WORLD').capitalize()
+            L('Hello world')
+        """
+        return L(str(self).capitalize())
+    
+    def title(self):
+        """
+        Return a titlecased version where words start with uppercase, rest lowercase.
+        
+        Returns:
+            L: Titlecased version of the string
+        
+        Examples:
+            >>> L('hello world').title()
+            L('Hello World')
+        """
+        return L(str(self).title())
+    
+    def swapcase(self):
+        """
+        Return a copy with uppercase converted to lowercase and vice versa.
+        
+        Returns:
+            L: String with swapped case
+        
+        Examples:
+            >>> L('Hello World').swapcase()
+            L('hELLO wORLD')
+        """
+        return L(str(self).swapcase())
 
 
 # Re-export utility functions from _lstring

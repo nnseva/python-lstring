@@ -3,10 +3,21 @@ Tests for istitle() on MulBuffer with boundary conditions.
 """
 import unittest
 from _lstring import L
+import lstring
 
 
 class TestMulBufferIstitleBoundaries(unittest.TestCase):
     """Test istitle() for MulBuffer with various boundary conditions."""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
     
     def test_empty_repeat_zero(self):
         """Empty string (repeat_count = 0)."""

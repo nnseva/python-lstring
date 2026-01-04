@@ -9,10 +9,21 @@ This caused strings like "Hello" to be incorrectly identified as not titlecase.
 """
 import unittest
 from _lstring import L
+import lstring
 
 
 class TestIstitleBugFix(unittest.TestCase):
     """Tests specifically targeting the istitle() bug with consecutive lowercase letters."""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
     
     def test_single_word_multiple_lowercase(self):
         """Multiple consecutive lowercase letters after uppercase (bug trigger)."""

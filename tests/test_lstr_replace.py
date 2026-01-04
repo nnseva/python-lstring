@@ -3,10 +3,21 @@ Tests for replace() method.
 """
 import unittest
 from lstring import L
+import lstring
 
 
 class TestReplace(unittest.TestCase):
     """Tests for replace() method."""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
     
     def test_basic_replace(self):
         """Basic replace with single occurrence."""

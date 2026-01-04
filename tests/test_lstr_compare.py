@@ -6,6 +6,17 @@ import lstring
 
 class TestLStrComparisons(unittest.TestCase):
     """Tests for equality and ordering comparisons."""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
+    
     def setUp(self):
         self.a = lstring.L("abc")
         self.b = lstring.L("abc")

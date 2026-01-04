@@ -5,10 +5,21 @@
 
 import unittest
 from lstring import L
+import lstring
 
 
 class TestLStrCharacterClasses(unittest.TestCase):
     """Тесты для методов определения классов символов."""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
     
     def test_isspace_whitespace(self):
         """Только пробельные символы возвращают True."""
