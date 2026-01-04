@@ -1005,6 +1005,72 @@ class L(_lstring.L):
         """
         return L(str(self).swapcase())
     
+    def encode(self, encoding='utf-8', errors='strict'):
+        """
+        Encode string to bytes using the specified encoding.
+        
+        Args:
+            encoding: The encoding to use (default: 'utf-8')
+            errors: Error handling scheme (default: 'strict')
+        
+        Returns:
+            bytes: Encoded byte string
+        
+        Examples:
+            >>> L('hello').encode()
+            b'hello'
+            >>> L('привет').encode('utf-8')
+            b'\\xd0\\xbf\\xd1\\x80\\xd0\\xb8\\xd0\\xb2\\xd0\\xb5\\xd1\\x82'
+        """
+        return str(self).encode(encoding, errors)
+    
+    def translate(self, table):
+        """
+        Return a copy with each character mapped through the translation table.
+        
+        Args:
+            table: Translation table (mapping from Unicode ordinals to ordinals, strings, or None)
+        
+        Returns:
+            L: Translated string
+        
+        Examples:
+            >>> table = str.maketrans('aeiou', '12345')
+            >>> L('hello world').translate(table)
+            L('h2ll4 w4rld')
+            >>> table = str.maketrans('', '', 'aeiou')
+            >>> L('hello world').translate(table)
+            L('hll wrld')
+        """
+        return L(str(self).translate(table))
+    
+    @staticmethod
+    def maketrans(*args, **kwargs):
+        """
+        Create a translation table for use with translate().
+        
+        This is a static method that delegates to str.maketrans().
+        
+        Args:
+            x: If only one argument, it must be a dictionary mapping ordinals to ordinals,
+               strings, or None. If two or more arguments, this is a string of characters
+               to be replaced.
+            y: String of replacement characters (same length as x)
+            z: String of characters to be deleted
+        
+        Returns:
+            dict: Translation table
+        
+        Examples:
+            >>> table = L.maketrans('aeiou', '12345')
+            >>> L('hello').translate(table)
+            L('h2ll4')
+            >>> table = L.maketrans('', '', 'aeiou')
+            >>> L('hello').translate(table)
+            L('hll')
+        """
+        return str.maketrans(*args, **kwargs)
+    
     def ljust(self, width, fillchar=' '):
         """
         Return left-justified string in a field of given width, padded with fillchar.
