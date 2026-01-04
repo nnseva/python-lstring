@@ -171,6 +171,70 @@ public:
     virtual Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const = 0;
 
     /**
+     * @brief Find any character from a set in the buffer searching forward.
+     *
+     * Searches for any code point present in the charset buffer between
+     * indices [start, end) and returns the index of the first occurrence
+     * or -1 when not found. Both start and end are interpreted as given
+     * (negative values are not adjusted by this helper).
+     *
+     * @param start Start index (inclusive)
+     * @param end End index (exclusive)
+     * @param charset Buffer containing the set of characters to search for
+     * @return Index of first matching character, or -1 if not found
+     */
+    virtual Py_ssize_t findcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset) const {
+        if (start < 0) start = 0;
+        Py_ssize_t len = length();
+        if (end > len) end = len;
+        if (start >= end) return -1;
+        if (!charset || charset->length() == 0) return -1;
+        
+        Py_ssize_t charset_len = charset->length();
+        for (Py_ssize_t i = start; i < end; ++i) {
+            uint32_t ch = value(i);
+            for (Py_ssize_t j = 0; j < charset_len; ++j) {
+                if (ch == charset->value(j)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * @brief Find any character from a set in the buffer searching backward.
+     *
+     * Searches for any code point present in the charset buffer between
+     * indices [start, end) from the right and returns the index of the
+     * last occurrence or -1 when not found. Both start and end are
+     * interpreted as given (negative values are not adjusted by this helper).
+     *
+     * @param start Start index (inclusive)
+     * @param end End index (exclusive)
+     * @param charset Buffer containing the set of characters to search for
+     * @return Index of last matching character, or -1 if not found
+     */
+    virtual Py_ssize_t rfindcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset) const {
+        if (start < 0) start = 0;
+        Py_ssize_t len = length();
+        if (end > len) end = len;
+        if (start >= end) return -1;
+        if (!charset || charset->length() == 0) return -1;
+        
+        Py_ssize_t charset_len = charset->length();
+        for (Py_ssize_t i = end - 1; i >= start; --i) {
+            uint32_t ch = value(i);
+            for (Py_ssize_t j = 0; j < charset_len; ++j) {
+                if (ch == charset->value(j)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
      * @brief Find first character matching character class(es) searching forward.
      *
      * Searches for a character that matches the specified character class mask

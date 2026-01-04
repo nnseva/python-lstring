@@ -390,6 +390,80 @@ class L(_lstring.L):
         
         return count
     
+    def findcs(self, charset, start=None, end=None):
+        """
+        Find first occurrence of any character from charset.
+        
+        Args:
+            charset: Characters to search for (str, L instance, or any iterable)
+            start: Optional start position (default: 0)
+            end: Optional end position (default: len(self))
+        
+        Returns:
+            int: Index of first matching character, or -1 if not found
+        
+        Examples:
+            >>> L('hello world').findcs('aeiou')
+            1
+            >>> L('hello world').findcs(['a', 'e', 'i'])
+            1
+            >>> L('hello world').findcs('xyz')
+            -1
+            >>> L('hello world').findcs('o', 0, 5)
+            4
+        """
+        # Convert charset to L
+        if isinstance(charset, str):
+            charset = L(charset)
+        elif not isinstance(charset, _lstring.L):
+            # Try to treat as iterable and join into a string
+            try:
+                iter(charset)
+                charset = L('').join(charset)
+            except TypeError:
+                # Not iterable, let C++ handle the error
+                pass
+        
+        # Call the C++ implementation
+        return super().findcs(charset, start, end)
+    
+    def rfindcs(self, charset, start=None, end=None):
+        """
+        Find last occurrence of any character from charset.
+        
+        Args:
+            charset: Characters to search for (str, L instance, or any iterable)
+            start: Optional start position (default: 0)
+            end: Optional end position (default: len(self))
+        
+        Returns:
+            int: Index of last matching character, or -1 if not found
+        
+        Examples:
+            >>> L('hello world').rfindcs('aeiou')
+            7
+            >>> L('hello world').rfindcs(['o', 'r', 'd'])
+            10
+            >>> L('hello world').rfindcs('xyz')
+            -1
+            >>> L('hello world').rfindcs('e', 0, 5)
+            1
+        """
+        # Convert charset to L
+        if isinstance(charset, str):
+            charset = L(charset)
+        elif not isinstance(charset, _lstring.L):
+            # Try to treat as iterable and join into a string
+            try:
+                iter(charset)
+                charset = L('').join(charset)
+            except TypeError:
+                # Not iterable, let C++ handle the error
+                pass
+        
+        # Call the C++ implementation
+        return super().rfindcs(charset, start, end)
+    
     def replace(self, old, new, count=-1):
         """
         Replace occurrences of substring old with new.

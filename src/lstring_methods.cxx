@@ -15,6 +15,8 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_findcs(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_rfindcs(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_findcc(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfindcc(LStrObject *self, PyObject *args, PyObject *kwds);
 
@@ -42,6 +44,8 @@ PyMethodDef LStr_methods[] = {
     {"rfind", (PyCFunction)LStr_rfind, METH_VARARGS | METH_KEYWORDS, "Find last occurrence like str.rfind(sub, start=None, end=None)"},
     {"findc", (PyCFunction)LStr_findc, METH_VARARGS | METH_KEYWORDS, "Find single code point: findc(ch, start=None, end=None)"},
     {"rfindc", (PyCFunction)LStr_rfindc, METH_VARARGS | METH_KEYWORDS, "Find single code point from right: rfindc(ch, start=None, end=None)"},
+    {"findcs", (PyCFunction)LStr_findcs, METH_VARARGS | METH_KEYWORDS, "Find any character from set: findcs(charset, start=None, end=None)"},
+    {"rfindcs", (PyCFunction)LStr_rfindcs, METH_VARARGS | METH_KEYWORDS, "Find any character from set from right: rfindcs(charset, start=None, end=None)"},
     {"findcc", (PyCFunction)LStr_findcc, METH_VARARGS | METH_KEYWORDS, "Find character by class: findcc(class_mask, start=None, end=None, invert=False)"},
     {"rfindcc", (PyCFunction)LStr_rfindcc, METH_VARARGS | METH_KEYWORDS, "Find character by class from right: rfindcc(class_mask, start=None, end=None, invert=False)"},
     {"isspace", (PyCFunction)LStr_isspace, METH_NOARGS, "Return True if all characters are whitespace, False otherwise"},
@@ -483,6 +487,172 @@ static PyObject* LStr_rfindc(LStrObject *self, PyObject *args, PyObject *kwds) {
     if (start >= end) return PyLong_FromLong(-1);
 
     Py_ssize_t res = buf->rfindc(start, end, ch);
+    return PyLong_FromSsize_t(res);
+}
+
+
+/**
+ * @brief findcs(self, charset, start=None, end=None)
+ * 
+ * Find first occurrence of any character from charset.
+ */
+static PyObject* LStr_findcs(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"charset", (char*)"start", (char*)"end", nullptr};
+    PyObject *charset_obj = nullptr;
+    PyObject *start_obj = Py_None;
+    PyObject *end_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OO:findcs", kwlist,
+                                     &charset_obj, &start_obj, &end_obj)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t buf_len = (Py_ssize_t)buf->length();
+
+    // Check if charset is an L instance (including subclasses)
+    // Find the base _lstring.L type by walking up from self's type
+    PyTypeObject *type_self = Py_TYPE(self);
+    PyTypeObject *base_type = type_self;
+    while (base_type->tp_base != nullptr && 
+           strcmp(base_type->tp_name, "_lstring.L") != 0) {
+        base_type = base_type->tp_base;
+    }
+    
+    // Check if charset_obj is also an instance of the base L type
+    if (PyObject_IsInstance(charset_obj, (PyObject*)base_type) != 1) {
+        PyErr_SetString(PyExc_TypeError, "charset must be an L instance");
+        return nullptr;
+    }
+    
+    LStrObject *charset_lstr = (LStrObject*)charset_obj;
+    if (!charset_lstr->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "charset L has no buffer");
+        return nullptr;
+    }
+    Buffer *charset = charset_lstr->buffer;
+
+    // Parse start/end
+    Py_ssize_t start;
+    if (start_obj == Py_None) {
+        start = 0;
+    } else {
+        if (!PyLong_Check(start_obj)) {
+            PyErr_SetString(PyExc_TypeError, "start must be int or None");
+            return nullptr;
+        }
+        start = PyLong_AsSsize_t(start_obj);
+        if (start == -1 && PyErr_Occurred()) return nullptr;
+        if (start < 0) start += buf_len;
+    }
+
+    Py_ssize_t end;
+    if (end_obj == Py_None) {
+        end = buf_len;
+    } else {
+        if (!PyLong_Check(end_obj)) {
+            PyErr_SetString(PyExc_TypeError, "end must be int or None");
+            return nullptr;
+        }
+        end = PyLong_AsSsize_t(end_obj);
+        if (end == -1 && PyErr_Occurred()) return nullptr;
+        if (end < 0) end += buf_len;
+    }
+
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (start > buf_len) return PyLong_FromLong(-1);
+    if (end > buf_len) end = buf_len;
+    if (start >= end) return PyLong_FromLong(-1);
+
+    Py_ssize_t res = buf->findcs(start, end, charset);
+    return PyLong_FromSsize_t(res);
+}
+
+
+/**
+ * @brief rfindcs(self, charset, start=None, end=None)
+ * 
+ * Find last occurrence of any character from charset.
+ */
+static PyObject* LStr_rfindcs(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"charset", (char*)"start", (char*)"end", nullptr};
+    PyObject *charset_obj = nullptr;
+    PyObject *start_obj = Py_None;
+    PyObject *end_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OO:rfindcs", kwlist,
+                                     &charset_obj, &start_obj, &end_obj)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t buf_len = (Py_ssize_t)buf->length();
+
+    // Check if charset is an L instance (including subclasses)
+    // Find the base _lstring.L type by walking up from self's type
+    PyTypeObject *type_self = Py_TYPE(self);
+    PyTypeObject *base_type = type_self;
+    while (base_type->tp_base != nullptr && 
+           strcmp(base_type->tp_name, "_lstring.L") != 0) {
+        base_type = base_type->tp_base;
+    }
+    
+    // Check if charset_obj is also an instance of the base L type
+    if (PyObject_IsInstance(charset_obj, (PyObject*)base_type) != 1) {
+        PyErr_SetString(PyExc_TypeError, "charset must be an L instance");
+        return nullptr;
+    }
+    
+    LStrObject *charset_lstr = (LStrObject*)charset_obj;
+    if (!charset_lstr->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "charset L has no buffer");
+        return nullptr;
+    }
+    Buffer *charset = charset_lstr->buffer;
+
+    // Parse start/end
+    Py_ssize_t start;
+    if (start_obj == Py_None) {
+        start = 0;
+    } else {
+        if (!PyLong_Check(start_obj)) {
+            PyErr_SetString(PyExc_TypeError, "start must be int or None");
+            return nullptr;
+        }
+        start = PyLong_AsSsize_t(start_obj);
+        if (start == -1 && PyErr_Occurred()) return nullptr;
+        if (start < 0) start += buf_len;
+    }
+
+    Py_ssize_t end;
+    if (end_obj == Py_None) {
+        end = buf_len;
+    } else {
+        if (!PyLong_Check(end_obj)) {
+            PyErr_SetString(PyExc_TypeError, "end must be int or None");
+            return nullptr;
+        }
+        end = PyLong_AsSsize_t(end_obj);
+        if (end == -1 && PyErr_Occurred()) return nullptr;
+        if (end < 0) end += buf_len;
+    }
+
+    if (start < 0) start = 0;
+    if (end < 0) end = 0;
+    if (start > buf_len) return PyLong_FromLong(-1);
+    if (end > buf_len) end = buf_len;
+    if (start >= end) return PyLong_FromLong(-1);
+
+    Py_ssize_t res = buf->rfindcs(start, end, charset);
     return PyLong_FromSsize_t(res);
 }
 
