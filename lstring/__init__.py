@@ -8,6 +8,7 @@ exposing the L class and re submodule for lazy string operations.
 import _lstring
 from enum import IntFlag
 from functools import partial
+from .format import printf
 
 
 class CharClass(IntFlag):
@@ -74,6 +75,31 @@ class L(_lstring.L):
     def __hash__(self):
         """Delegate hash to parent C++ implementation."""
         return super().__hash__()
+    
+    def __mod__(self, values):
+        """
+        Printf-style string formatting using the % operator.
+        
+        Supports both positional and named placeholders:
+        - Positional: %s, %d, %f, etc. with tuple or single value
+        - Named: %(name)s, %(key)d, etc. with dict
+        
+        Args:
+            values: Formatting values - tuple/single value for positional,
+                   dict for named placeholders
+        
+        Returns:
+            L: Formatted lazy string
+        
+        Examples:
+            >>> L('Hello %s') % 'world'
+            L('Hello world')
+            >>> L('%(name)s is %(age)d') % {'name': 'Alice', 'age': 30}
+            L('Alice is 30')
+            >>> L('Value: %d') % 42
+            L('Value: 42')
+        """
+        return printf(self, values)
     
     def join(self, iterable):
         """
