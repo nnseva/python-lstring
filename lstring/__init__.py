@@ -7,6 +7,7 @@ exposing the L class and re submodule for lazy string operations.
 
 import _lstring
 from enum import IntFlag
+from functools import partial
 
 
 class CharClass(IntFlag):
@@ -1119,23 +1120,18 @@ class L(_lstring.L):
         """
         length = len(self)
         
+        # Choose appropriate find function using partial
         if chars is None:
-            # Use findcc for whitespace - find first non-whitespace character
-            pos = self.findcc(CharClass.SPACE, 0, length, invert=True)
-            if pos == -1:  # All whitespace
-                return L('')
-            if pos == 0:  # No leading whitespace
-                return self
-            return self[pos:]
+            find_func = partial(self.findcc, CharClass.SPACE)
         else:
-            # Use findcs with invert=True to find first character NOT in chars
-            charset = L(chars) if isinstance(chars, str) else chars
-            pos = self.findcs(charset, 0, length, invert=True)
-            if pos == -1:  # All chars to strip
-                return L('')
-            if pos == 0:  # No leading chars to strip
-                return self
-            return self[pos:]
+            find_func = partial(self.findcs, L(chars) if isinstance(chars, str) else chars)
+        pos = find_func(0, length, invert=True)
+
+        if pos == -1:  # All chars to strip
+            return L('')
+        if pos == 0:  # No leading chars to strip
+            return self
+        return self[pos:]
     
     def rstrip(self, chars=None):
         """
@@ -1158,30 +1154,25 @@ class L(_lstring.L):
         """
         length = len(self)
         
+        # Choose appropriate find function using partial
         if chars is None:
-            # Use rfindcc for whitespace - find last non-whitespace character
-            pos = self.rfindcc(CharClass.SPACE, 0, length, invert=True)
-            if pos == -1:  # All whitespace
-                return L('')
-            if pos == length - 1:  # No trailing whitespace
-                return self
-            return self[:pos + 1]
+            find_func = partial(self.rfindcc, CharClass.SPACE)
         else:
-            # Use rfindcs with invert=True to find last character NOT in chars
-            charset = L(chars) if isinstance(chars, str) else chars
-            pos = self.rfindcs(charset, 0, length, invert=True)
-            if pos == -1:  # All chars to strip
-                return L('')
-            if pos == length - 1:  # No trailing chars to strip
-                return self
-            return self[:pos + 1]
+            find_func = partial(self.rfindcs, L(chars) if isinstance(chars, str) else chars)
+        pos = find_func(0, length, invert=True)
+
+        if pos == -1:  # All chars to strip
+            return L('')
+        if pos == length - 1:  # No trailing chars to strip
+            return self
+        return self[:pos + 1]
     
     def strip(self, chars=None):
         """
         Return a copy with leading and trailing characters removed.
         
         Uses lazy slicing to remove both leading and trailing whitespace or specified characters.
-        Efficiently combines lstrip and rstrip operations.
+        Finds both boundaries and creates a single slice.
         
         Args:
             chars: String of characters to remove (default: whitespace)
@@ -1195,8 +1186,24 @@ class L(_lstring.L):
             >>> L('---hello---').strip('-')
             L('hello')
         """
-        # Simply combine lstrip and rstrip - both are already optimized
-        return self.lstrip(chars).rstrip(chars)
+        length = len(self)
+        
+        # Choose appropriate find functions using partial
+        if chars is None:
+            find_start = partial(self.findcc, CharClass.SPACE)
+            find_end = partial(self.rfindcc, CharClass.SPACE)
+        else:
+            charset = L(chars) if isinstance(chars, str) else chars
+            find_start = partial(self.findcs, charset)
+            find_end = partial(self.rfindcs, charset)
+        
+        start = find_start(0, length, invert=True)
+        if start == -1:  # All chars to strip
+            return L('')
+        end = find_end(0, length, invert=True)
+        if start == 0 and end == length - 1:  # No chars to strip
+            return self
+        return self[start:end + 1]
 
 
 # Re-export utility functions from _lstring

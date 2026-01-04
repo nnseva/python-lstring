@@ -4,11 +4,21 @@
 
 import unittest
 from lstring import L
-
+import lstring
 
 class TestFindcsInvert(unittest.TestCase):
     """Test findcs with invert parameter."""
-    
+
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
+   
     def test_findcs_without_invert(self):
         """Test findcs finds character in charset."""
         s = L('hello world')
@@ -47,6 +57,16 @@ class TestFindcsInvert(unittest.TestCase):
 
 class TestRfindcsInvert(unittest.TestCase):
     """Test rfindcs with invert parameter."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
     
     def test_rfindcs_without_invert(self):
         """Test rfindcs finds character in charset."""
@@ -86,7 +106,17 @@ class TestRfindcsInvert(unittest.TestCase):
 
 class TestStripWithFindcsInvert(unittest.TestCase):
     """Test that strip methods use findcs/rfindcs with invert correctly."""
-    
+
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
+
     def test_lstrip_uses_findcs_invert(self):
         """Test lstrip correctly uses findcs with invert."""
         s = L('---===hello')
@@ -110,10 +140,12 @@ class TestStripWithFindcsInvert(unittest.TestCase):
         s = L('---===hello===---')
         result = s.strip('-=')
         self.assertEqual(str(result), 'hello')
-        # Should have two slices (from lstrip and rstrip)
+        # Should have single slice with both boundaries
         repr_str = repr(result)
-        # Two slice operations
-        self.assertEqual(repr_str.count('['), 2)
+        # One slice operation with both start and end
+        self.assertEqual(repr_str.count('['), 1)
+        # Should contain both boundaries like [6:11]
+        self.assertIn('[6:11]', repr_str)
     
     def test_strip_all_chars_to_remove(self):
         """Test strip when entire string should be removed."""
