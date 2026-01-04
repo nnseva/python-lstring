@@ -390,7 +390,7 @@ class L(_lstring.L):
         
         return count
     
-    def findcs(self, charset, start=None, end=None):
+    def findcs(self, charset, start=None, end=None, invert=False):
         """
         Find first occurrence of any character from charset.
         
@@ -398,6 +398,7 @@ class L(_lstring.L):
             charset: Characters to search for (str, L instance, or any iterable)
             start: Optional start position (default: 0)
             end: Optional end position (default: len(self))
+            invert: If True, find first character NOT in charset
         
         Returns:
             int: Index of first matching character, or -1 if not found
@@ -411,6 +412,8 @@ class L(_lstring.L):
             -1
             >>> L('hello world').findcs('o', 0, 5)
             4
+            >>> L('hello world').findcs('aeiou', invert=True)
+            0
         """
         # Convert charset to L
         if isinstance(charset, str):
@@ -425,9 +428,9 @@ class L(_lstring.L):
                 pass
         
         # Call the C++ implementation
-        return super().findcs(charset, start, end)
+        return super().findcs(charset, start, end, invert)
     
-    def rfindcs(self, charset, start=None, end=None):
+    def rfindcs(self, charset, start=None, end=None, invert=False):
         """
         Find last occurrence of any character from charset.
         
@@ -435,6 +438,7 @@ class L(_lstring.L):
             charset: Characters to search for (str, L instance, or any iterable)
             start: Optional start position (default: 0)
             end: Optional end position (default: len(self))
+            invert: If True, find last character NOT in charset
         
         Returns:
             int: Index of last matching character, or -1 if not found
@@ -448,6 +452,8 @@ class L(_lstring.L):
             -1
             >>> L('hello world').rfindcs('e', 0, 5)
             1
+            >>> L('hello world').rfindcs('aeiou', invert=True)
+            10
         """
         # Convert charset to L
         if isinstance(charset, str):
@@ -462,7 +468,7 @@ class L(_lstring.L):
                 pass
         
         # Call the C++ implementation
-        return super().rfindcs(charset, start, end)
+        return super().rfindcs(charset, start, end, invert)
     
     def replace(self, old, new, count=-1):
         """
@@ -997,6 +1003,200 @@ class L(_lstring.L):
             L('hELLO wORLD')
         """
         return L(str(self).swapcase())
+    
+    def ljust(self, width, fillchar=' '):
+        """
+        Return left-justified string in a field of given width, padded with fillchar.
+        
+        Uses lazy multiplication to create padding.
+        
+        Args:
+            width: Minimum width of resulting string
+            fillchar: Character to use for padding (default: space)
+        
+        Returns:
+            L: Left-justified string
+        
+        Examples:
+            >>> L('hello').ljust(10)
+            L('hello     ')
+            >>> L('hello').ljust(10, '-')
+            L('hello-----')
+        """
+        if not isinstance(fillchar, str) or len(fillchar) != 1:
+            raise TypeError('fillchar must be a single character')
+        
+        current_len = len(self)
+        if current_len >= width:
+            return self
+        
+        padding_len = width - current_len
+        padding = L(fillchar) * padding_len
+        return self + padding
+    
+    def rjust(self, width, fillchar=' '):
+        """
+        Return right-justified string in a field of given width, padded with fillchar.
+        
+        Uses lazy multiplication to create padding.
+        
+        Args:
+            width: Minimum width of resulting string
+            fillchar: Character to use for padding (default: space)
+        
+        Returns:
+            L: Right-justified string
+        
+        Examples:
+            >>> L('hello').rjust(10)
+            L('     hello')
+            >>> L('hello').rjust(10, '-')
+            L('-----hello')
+        """
+        if not isinstance(fillchar, str) or len(fillchar) != 1:
+            raise TypeError('fillchar must be a single character')
+        
+        current_len = len(self)
+        if current_len >= width:
+            return self
+        
+        padding_len = width - current_len
+        padding = L(fillchar) * padding_len
+        return padding + self
+    
+    def center(self, width, fillchar=' '):
+        """
+        Return centered string in a field of given width, padded with fillchar.
+        
+        Uses lazy multiplication to create padding on both sides.
+        
+        Args:
+            width: Minimum width of resulting string
+            fillchar: Character to use for padding (default: space)
+        
+        Returns:
+            L: Centered string
+        
+        Examples:
+            >>> L('hello').center(11)
+            L('   hello   ')
+            >>> L('hello').center(10, '-')
+            L('--hello---')
+        """
+        if not isinstance(fillchar, str) or len(fillchar) != 1:
+            raise TypeError('fillchar must be a single character')
+        
+        current_len = len(self)
+        if current_len >= width:
+            return self
+        
+        total_padding = width - current_len
+        left_padding_len = total_padding // 2
+        right_padding_len = total_padding - left_padding_len
+        
+        left_padding = L(fillchar) * left_padding_len
+        right_padding = L(fillchar) * right_padding_len
+        return left_padding + self + right_padding
+    
+    def lstrip(self, chars=None):
+        """
+        Return a copy with leading characters removed.
+        
+        Uses lazy slicing to remove leading whitespace or specified characters.
+        Uses findcc for whitespace, findcs with invert for custom chars.
+        
+        Args:
+            chars: String of characters to remove (default: whitespace)
+        
+        Returns:
+            L: String with leading characters removed
+        
+        Examples:
+            >>> L('  hello  ').lstrip()
+            L('hello  ')
+            >>> L('---hello---').lstrip('-')
+            L('hello---')
+        """
+        length = len(self)
+        
+        if chars is None:
+            # Use findcc for whitespace - find first non-whitespace character
+            pos = self.findcc(CharClass.SPACE, 0, length, invert=True)
+            if pos == -1:  # All whitespace
+                return L('')
+            if pos == 0:  # No leading whitespace
+                return self
+            return self[pos:]
+        else:
+            # Use findcs with invert=True to find first character NOT in chars
+            charset = L(chars) if isinstance(chars, str) else chars
+            pos = self.findcs(charset, 0, length, invert=True)
+            if pos == -1:  # All chars to strip
+                return L('')
+            if pos == 0:  # No leading chars to strip
+                return self
+            return self[pos:]
+    
+    def rstrip(self, chars=None):
+        """
+        Return a copy with trailing characters removed.
+        
+        Uses lazy slicing to remove trailing whitespace or specified characters.
+        Uses rfindcc for whitespace, rfindcs with invert for custom chars.
+        
+        Args:
+            chars: String of characters to remove (default: whitespace)
+        
+        Returns:
+            L: String with trailing characters removed
+        
+        Examples:
+            >>> L('  hello  ').rstrip()
+            L('  hello')
+            >>> L('---hello---').rstrip('-')
+            L('---hello')
+        """
+        length = len(self)
+        
+        if chars is None:
+            # Use rfindcc for whitespace - find last non-whitespace character
+            pos = self.rfindcc(CharClass.SPACE, 0, length, invert=True)
+            if pos == -1:  # All whitespace
+                return L('')
+            if pos == length - 1:  # No trailing whitespace
+                return self
+            return self[:pos + 1]
+        else:
+            # Use rfindcs with invert=True to find last character NOT in chars
+            charset = L(chars) if isinstance(chars, str) else chars
+            pos = self.rfindcs(charset, 0, length, invert=True)
+            if pos == -1:  # All chars to strip
+                return L('')
+            if pos == length - 1:  # No trailing chars to strip
+                return self
+            return self[:pos + 1]
+    
+    def strip(self, chars=None):
+        """
+        Return a copy with leading and trailing characters removed.
+        
+        Uses lazy slicing to remove both leading and trailing whitespace or specified characters.
+        Efficiently combines lstrip and rstrip operations.
+        
+        Args:
+            chars: String of characters to remove (default: whitespace)
+        
+        Returns:
+            L: String with leading and trailing characters removed
+        
+        Examples:
+            >>> L('  hello  ').strip()
+            L('hello')
+            >>> L('---hello---').strip('-')
+            L('hello')
+        """
+        # Simply combine lstrip and rstrip - both are already optimized
+        return self.lstrip(chars).rstrip(chars)
 
 
 # Re-export utility functions from _lstring

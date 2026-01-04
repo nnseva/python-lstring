@@ -181,22 +181,28 @@ public:
      * @param start Start index (inclusive)
      * @param end End index (exclusive)
      * @param charset Buffer containing the set of characters to search for
+     * @param invert If true, find first character NOT in charset
      * @return Index of first matching character, or -1 if not found
      */
-    virtual Py_ssize_t findcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset) const {
+    virtual Py_ssize_t findcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset, bool invert = false) const {
         if (start < 0) start = 0;
         Py_ssize_t len = length();
         if (end > len) end = len;
         if (start >= end) return -1;
-        if (!charset || charset->length() == 0) return -1;
+        if (!charset || charset->length() == 0) return invert ? (start < end ? start : -1) : -1;
         
         Py_ssize_t charset_len = charset->length();
         for (Py_ssize_t i = start; i < end; ++i) {
             uint32_t ch = value(i);
+            bool found = false;
             for (Py_ssize_t j = 0; j < charset_len; ++j) {
                 if (ch == charset->value(j)) {
-                    return i;
+                    found = true;
+                    break;
                 }
+            }
+            if (found != invert) {
+                return i;
             }
         }
         return -1;
@@ -213,22 +219,28 @@ public:
      * @param start Start index (inclusive)
      * @param end End index (exclusive)
      * @param charset Buffer containing the set of characters to search for
+     * @param invert If true, find last character NOT in charset
      * @return Index of last matching character, or -1 if not found
      */
-    virtual Py_ssize_t rfindcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset) const {
+    virtual Py_ssize_t rfindcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset, bool invert = false) const {
         if (start < 0) start = 0;
         Py_ssize_t len = length();
         if (end > len) end = len;
         if (start >= end) return -1;
-        if (!charset || charset->length() == 0) return -1;
+        if (!charset || charset->length() == 0) return invert ? (end > start ? end - 1 : -1) : -1;
         
         Py_ssize_t charset_len = charset->length();
         for (Py_ssize_t i = end - 1; i >= start; --i) {
             uint32_t ch = value(i);
+            bool found = false;
             for (Py_ssize_t j = 0; j < charset_len; ++j) {
                 if (ch == charset->value(j)) {
-                    return i;
+                    found = true;
+                    break;
                 }
+            }
+            if (found != invert) {
+                return i;
             }
         }
         return -1;
