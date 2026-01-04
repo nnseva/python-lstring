@@ -849,6 +849,72 @@ class L(_lstring.L):
         """
         return list(self.splitlines_iter(keepends))
 
+    def partition(self, sep):
+        """
+        Partition string at first occurrence of separator.
+        
+        Returns a 3-tuple: (before, sep, after).
+        If separator is not found, returns (str, L(''), L('')).
+        
+        Args:
+            sep: Separator to partition by (str or L instance)
+        
+        Returns:
+            tuple: (before, sep, after) as L instances
+        
+        Examples:
+            >>> L('hello:world').partition(':')
+            (L('hello'), L(':'), L('world'))
+            >>> L('hello').partition(':')
+            (L('hello'), L(''), L(''))
+            >>> L('a:b:c').partition(':')
+            (L('a'), L(':'), L('b:c'))
+        """
+        # Use split with maxsplit=1 (it will validate and convert sep)
+        parts = self.split(sep, 1)
+        
+        if len(parts) == 1:
+            # Separator not found
+            return (self, L(''), L(''))
+        else:
+            # Separator found - convert sep to L if needed for return value
+            if isinstance(sep, str):
+                sep = L(sep)
+            return (parts[0], sep, parts[1])
+    
+    def rpartition(self, sep):
+        """
+        Partition string at last occurrence of separator.
+        
+        Returns a 3-tuple: (before, sep, after).
+        If separator is not found, returns (L(''), L(''), str).
+        
+        Args:
+            sep: Separator to partition by (str or L instance)
+        
+        Returns:
+            tuple: (before, sep, after) as L instances
+        
+        Examples:
+            >>> L('hello:world').rpartition(':')
+            (L('hello'), L(':'), L('world'))
+            >>> L('hello').rpartition(':')
+            (L(''), L(''), L('hello'))
+            >>> L('a:b:c').rpartition(':')
+            (L('a:b'), L(':'), L('c'))
+        """
+        # Use rsplit with maxsplit=1 (it will validate and convert sep)
+        parts = self.rsplit(sep, 1)
+        
+        if len(parts) == 1:
+            # Separator not found
+            return (L(''), L(''), self)
+        else:
+            # Separator found - convert sep to L if needed for return value
+            if isinstance(sep, str):
+                sep = L(sep)
+            return (parts[0], sep, parts[1])
+
 
 # Re-export utility functions from _lstring
 get_optimize_threshold = _lstring.get_optimize_threshold
