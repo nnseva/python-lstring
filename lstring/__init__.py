@@ -529,6 +529,59 @@ class L(_lstring.L):
         # Join segments without separator
         return L('').join(segments())
     
+    def split_iter(self, sep=None, maxsplit=-1):
+        """
+        Split string by separator, returning an iterator.
+        
+        Args:
+            sep: Separator to split by (str or L instance, or None for whitespace)
+            maxsplit: Maximum number of splits (default: -1 = all)
+        
+        Yields:
+            L instances
+        
+        Examples:
+            >>> list(L('a,b,c').split_iter(','))
+            [L('a'), L('b'), L('c')]
+            >>> list(L('a  b  c').split_iter())
+            [L('a'), L('b'), L('c')]
+            >>> list(L('a,b,c').split_iter(',', 1))
+            [L('a'), L('b,c')]
+        """
+        # Split by whitespace if sep is None
+        if sep is None:
+            yield from self._split_whitespace_iter(maxsplit)
+            return
+        
+        # Convert sep to L if it's a string
+        if isinstance(sep, str):
+            sep = L(sep)
+        elif not isinstance(sep, _lstring.L):
+            raise TypeError(f"split() argument must be str or L, not {type(sep).__name__}")
+        
+        # Empty separator is not allowed
+        sep_len = len(sep)
+        if sep_len == 0:
+            raise ValueError("empty separator")
+        
+        # Generate segments by splitting on separator
+        last_end = 0
+        splits_done = 0
+        max_splits = maxsplit if maxsplit >= 0 else float('inf')
+        
+        while splits_done < max_splits:
+            found = self.find(sep, last_end)
+            if found == -1:
+                break
+            
+            # Yield segment before separator (may be empty)
+            yield self[last_end:found]
+            last_end = found + sep_len
+            splits_done += 1
+        
+        # Yield final segment
+        yield self[last_end:]
+    
     def split(self, sep=None, maxsplit=-1):
         """
         Split string by separator.
@@ -548,88 +601,51 @@ class L(_lstring.L):
             >>> L('a,b,c').split(',', 1)
             [L('a'), L('b,c')]
         """
-        # Split by whitespace if sep is None
-        if sep is None:
-            return self._split_whitespace(maxsplit)
-        
-        # Convert sep to L if it's a string
-        if isinstance(sep, str):
-            sep = L(sep)
-        elif not isinstance(sep, _lstring.L):
-            raise TypeError(f"split() argument must be str or L, not {type(sep).__name__}")
-        
-        # Empty separator is not allowed
-        sep_len = len(sep)
-        if sep_len == 0:
-            raise ValueError("empty separator")
-        
-        # Generate segments by splitting on separator
-        def segments():
-            last_end = 0
-            splits_done = 0
-            max_splits = maxsplit if maxsplit >= 0 else float('inf')
-            
-            while splits_done < max_splits:
-                found = self.find(sep, last_end)
-                if found == -1:
-                    break
-                
-                # Yield segment before separator (may be empty)
-                yield self[last_end:found]
-                last_end = found + sep_len
-                splits_done += 1
-            
-            # Yield final segment
-            yield self[last_end:]
-        
-        return list(segments())
+        return list(self.split_iter(sep, maxsplit))
     
-    def _split_whitespace(self, maxsplit=-1):
+    def _split_whitespace_iter(self, maxsplit=-1):
         """
-        Split string by whitespace, merging consecutive whitespace.
+        Split string by whitespace, merging consecutive whitespace, returning an iterator.
         
         Args:
             maxsplit: Maximum number of splits (default: -1 = all)
         
-        Returns:
-            list: List of L instances (non-empty)
+        Yields:
+            L instances (non-empty)
         """
-        def segments():
-            length = len(self)
-            pos = 0
-            splits_done = 0
-            max_splits = maxsplit if maxsplit >= 0 else float('inf')
-            
-            while pos < length and splits_done < max_splits:
-                # Skip leading whitespace using findcc
-                non_space = self.findcc(CharClass.SPACE, pos, length, invert=True)
-                if non_space == -1:
-                    break
-                pos = non_space
-                
-                if pos >= length:
-                    break
-                
-                # Find end of non-whitespace segment using findcc
-                start = pos
-                space = self.findcc(CharClass.SPACE, pos, length)
-                if space == -1:
-                    pos = length
-                else:
-                    pos = space
-                
-                # Yield segment
-                yield self[start:pos]
-                splits_done += 1
-            
-            # If we hit maxsplit, add the rest as final segment
-            if splits_done >= max_splits and pos < length:
-                # Skip leading whitespace of final segment using findcc
-                non_space = self.findcc(CharClass.SPACE, pos, length, invert=True)
-                if non_space != -1:
-                    yield self[non_space:]
+        length = len(self)
+        pos = 0
+        splits_done = 0
+        max_splits = maxsplit if maxsplit >= 0 else float('inf')
         
-        return list(segments())
+        while pos < length and splits_done < max_splits:
+            # Skip leading whitespace using findcc
+            non_space = self.findcc(CharClass.SPACE, pos, length, invert=True)
+            if non_space == -1:
+                break
+            pos = non_space
+            
+            if pos >= length:
+                break
+            
+            # Find end of non-whitespace segment using findcc
+            start = pos
+            space = self.findcc(CharClass.SPACE, pos, length)
+            if space == -1:
+                pos = length
+            else:
+                pos = space
+            
+            # Yield segment
+            yield self[start:pos]
+            splits_done += 1
+        
+        # If we hit maxsplit, add the rest as final segment
+        if splits_done >= max_splits and pos < length:
+            # Skip leading whitespace of final segment using findcc
+            non_space = self.findcc(CharClass.SPACE, pos, length, invert=True)
+            if non_space != -1:
+                yield self[non_space:]
     
     def rsplit(self, sep=None, maxsplit=-1):
         """
