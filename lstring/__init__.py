@@ -770,6 +770,63 @@ class L(_lstring.L):
             if non_space != -1:
                 yield self[:non_space + 1]
     
+    def splitlines_iter(self, keepends=False):
+        """
+        Split string by line boundaries, returning an iterator.
+        
+        Line boundaries include: \\n, \\r, \\r\\n, \\v, \\f, \\x1c, \\x1d, \\x1e, \\x85, \\u2028, \\u2029
+        
+        Args:
+            keepends: If True, line breaks are included in the resulting strings (default: False)
+        
+        Yields:
+            L instances representing lines
+        
+        Examples:
+            >>> list(L('hello\\nworld\\r\\ntest').splitlines_iter())
+            [L('hello'), L('world'), L('test')]
+            >>> list(L('hello\\nworld\\n').splitlines_iter(keepends=True))
+            [L('hello\\n'), L('world\\n')]
+            >>> list(L('line1\\r\\nline2').splitlines_iter())
+            [L('line1'), L('line2')]
+        """
+        # Line break characters according to Python's str.splitlines()
+        # \n (LF), \r (CR), \v (VT), \f (FF), \x1c (FS), \x1d (GS), \x1e (RS)
+        # \x85 (NEL), \u2028 (LS), \u2029 (PS)
+        line_breaks = L('\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029')
+        
+        if len(self) == 0:
+            return
+        
+        start = 0
+        length = len(self)
+        
+        while start < length:
+            # Find the next line break character using findcs
+            pos = self.findcs(line_breaks, start)
+            
+            if pos == -1:
+                # No more line breaks, add the rest
+                if start < length:
+                    yield self[start:]
+                break
+            
+            # Check if it's \r\n (CRLF) - treat as single line break
+            if pos < length - 1 and self[pos:pos+2] == L('\r\n'):
+                # Found \r\n
+                if keepends:
+                    yield self[start:pos + 2]
+                else:
+                    yield self[start:pos]
+                start = pos + 2
+            else:
+                # Single character line break
+                if keepends:
+                    yield self[start:pos + 1]
+                else:
+                    yield self[start:pos]
+                start = pos + 1
+    
     def splitlines(self, keepends=False):
         """
         Split string by line boundaries.
@@ -790,45 +847,7 @@ class L(_lstring.L):
             >>> L('line1\\r\\nline2').splitlines()
             [L('line1'), L('line2')]
         """
-        # Line break characters according to Python's str.splitlines()
-        # \n (LF), \r (CR), \v (VT), \f (FF), \x1c (FS), \x1d (GS), \x1e (RS)
-        # \x85 (NEL), \u2028 (LS), \u2029 (PS)
-        line_breaks = L('\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029')
-        
-        if len(self) == 0:
-            return []
-        
-        def lines():
-            start = 0
-            length = len(self)
-            
-            while start < length:
-                # Find the next line break character using findcs
-                pos = self.findcs(line_breaks, start)
-                
-                if pos == -1:
-                    # No more line breaks, add the rest
-                    if start < length:
-                        yield self[start:]
-                    break
-                
-                # Check if it's \r\n (CRLF) - treat as single line break
-                if pos < length - 1 and self[pos:pos+2] == L('\r\n'):
-                    # Found \r\n
-                    if keepends:
-                        yield self[start:pos + 2]
-                    else:
-                        yield self[start:pos]
-                    start = pos + 2
-                else:
-                    # Single character line break
-                    if keepends:
-                        yield self[start:pos + 1]
-                    else:
-                        yield self[start:pos]
-                    start = pos + 1
-        
-        return list(lines())
+        return list(self.splitlines_iter(keepends))
 
 
 # Re-export utility functions from _lstring

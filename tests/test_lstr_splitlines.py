@@ -164,5 +164,51 @@ class TestLStrSplitlines(unittest.TestCase):
             self.assertEqual(l_result_keep, expected_keep, f"Failed with keepends for: {repr(s)}")
 
 
+class TestSplitlinesIterator(unittest.TestCase):
+    """Tests for L.splitlines_iter generator method"""
+    
+    def test_splitlines_iter_returns_generator(self):
+        """Test that splitlines_iter returns a generator."""
+        result = L('hello\nworld\r\ntest').splitlines_iter()
+        self.assertTrue(hasattr(result, '__iter__') and hasattr(result, '__next__'))
+        self.assertEqual(list(result), [L('hello'), L('world'), L('test')])
+    
+    def test_splitlines_iter_with_keepends(self):
+        """Test that splitlines_iter works with keepends parameter."""
+        result = L('hello\nworld\n').splitlines_iter(keepends=True)
+        self.assertTrue(hasattr(result, '__iter__') and hasattr(result, '__next__'))
+        self.assertEqual(list(result), [L('hello\n'), L('world\n')])
+    
+    def test_splitlines_still_returns_list(self):
+        """Test that splitlines() still returns a list (not a generator)."""
+        result = L('hello\nworld').splitlines()
+        self.assertIsInstance(result, list)
+        self.assertEqual(result, [L('hello'), L('world')])
+    
+    def test_splitlines_iter_consistency_with_splitlines(self):
+        """Test that splitlines_iter produces same results as splitlines."""
+        test_cases = [
+            'hello\nworld\ntest',
+            'line1\r\nline2\r\nline3',
+            'a\rb\nc\r\nd',
+            '\n\n\n',
+            'no line breaks',
+            '',
+        ]
+        for string in test_cases:
+            with self.subTest(string=string):
+                s = L(string)
+                # Test without keepends
+                self.assertEqual(
+                    list(s.splitlines_iter()),
+                    s.splitlines()
+                )
+                # Test with keepends
+                self.assertEqual(
+                    list(s.splitlines_iter(keepends=True)),
+                    s.splitlines(keepends=True)
+                )
+
+
 if __name__ == '__main__':
     unittest.main()

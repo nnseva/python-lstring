@@ -210,5 +210,79 @@ class TestSplitBufferTypes(unittest.TestCase):
         self.assertEqual(result, [L('a'), L('b'), L('c')])
 
 
+class TestSplitIterators(unittest.TestCase):
+    """Test L.split_iter() and L.rsplit_iter() generator methods"""
+    
+    def test_split_iter_returns_generator(self):
+        """Test that split_iter returns a generator."""
+        result = L('a,b,c').split_iter(',')
+        self.assertTrue(hasattr(result, '__iter__') and hasattr(result, '__next__'))
+        self.assertEqual(list(result), [L('a'), L('b'), L('c')])
+    
+    def test_rsplit_iter_returns_generator(self):
+        """Test that rsplit_iter returns a generator."""
+        result = L('a,b,c').rsplit_iter(',', 1)
+        self.assertTrue(hasattr(result, '__iter__') and hasattr(result, '__next__'))
+        # rsplit_iter yields from right to left, so we need to reverse
+        self.assertEqual(list(reversed(list(result))), [L('a,b'), L('c')])
+    
+    def test_split_iter_whitespace(self):
+        """Test that split_iter with sep=None returns a generator."""
+        result = L('a  b  c').split_iter()
+        self.assertTrue(hasattr(result, '__iter__') and hasattr(result, '__next__'))
+        self.assertEqual(list(result), [L('a'), L('b'), L('c')])
+    
+    def test_rsplit_iter_whitespace(self):
+        """Test that rsplit_iter with sep=None returns a generator."""
+        result = L('a  b  c').rsplit_iter(maxsplit=1)
+        self.assertTrue(hasattr(result, '__iter__') and hasattr(result, '__next__'))
+        # rsplit_iter yields from right to left
+        self.assertEqual(list(reversed(list(result))), [L('a  b'), L('c')])
+    
+    def test_split_still_returns_list(self):
+        """Test that split() still returns a list (not a generator)."""
+        result = L('a,b,c').split(',')
+        self.assertIsInstance(result, list)
+        self.assertEqual(result, [L('a'), L('b'), L('c')])
+    
+    def test_rsplit_still_returns_list(self):
+        """Test that rsplit() still returns a list (not a generator)."""
+        result = L('a,b,c').rsplit(',', 1)
+        self.assertIsInstance(result, list)
+        self.assertEqual(result, [L('a,b'), L('c')])
+    
+    def test_split_iter_consistency_with_split(self):
+        """Test that split_iter produces same results as split."""
+        test_cases = [
+            ('a,b,c', ',', -1),
+            ('a  b  c', None, -1),
+            ('a,b,c,d', ',', 2),
+            ('  hello  world  ', None, 1),
+        ]
+        for string, sep, maxsplit in test_cases:
+            with self.subTest(string=string, sep=sep, maxsplit=maxsplit):
+                s = L(string)
+                self.assertEqual(
+                    list(s.split_iter(sep, maxsplit)),
+                    s.split(sep, maxsplit)
+                )
+    
+    def test_rsplit_iter_consistency_with_rsplit(self):
+        """Test that rsplit_iter produces same results as rsplit (after reversal)."""
+        test_cases = [
+            ('a,b,c', ',', -1),
+            ('a  b  c', None, -1),
+            ('a,b,c,d', ',', 2),
+            ('  hello  world  ', None, 1),
+        ]
+        for string, sep, maxsplit in test_cases:
+            with self.subTest(string=string, sep=sep, maxsplit=maxsplit):
+                s = L(string)
+                self.assertEqual(
+                    list(reversed(list(s.rsplit_iter(sep, maxsplit)))),
+                    s.rsplit(sep, maxsplit)
+                )
+
+
 if __name__ == '__main__':
     unittest.main()
