@@ -1099,6 +1099,43 @@ class L(_lstring.L):
         right_padding = L(fillchar) * right_padding_len
         return left_padding + self + right_padding
     
+    def zfill(self, width):
+        """
+        Pad string with zeros on the left to fill given width.
+        
+        If the string starts with a sign (+/-), zeros are inserted after the sign.
+        Uses lazy slicing and rjust for padding.
+        
+        Args:
+            width: Minimum width of resulting string
+        
+        Returns:
+            L: Zero-padded string
+        
+        Examples:
+            >>> L('42').zfill(5)
+            L('00042')
+            >>> L('-42').zfill(5)
+            L('-0042')
+            >>> L('+42').zfill(5)
+            L('+0042')
+        """
+        length = len(self)
+        
+        # If already wide enough, return as is
+        if length >= width:
+            return self
+        
+        # Check for leading sign
+        if length > 0:
+            first_char = self[0]
+            if first_char in ('+', '-'):
+                # Sign present: insert zeros after sign
+                return self[0:1] + self[1:].rjust(width - 1, '0')
+        
+        # No sign: just pad with zeros
+        return self.rjust(width, '0')
+    
     def lstrip(self, chars=None):
         """
         Return a copy with leading characters removed.
@@ -1260,7 +1297,7 @@ class L(_lstring.L):
                     column += next_pos - pos
                 
                 # Get the special character
-                char = str(self[next_pos])
+                char = self[next_pos]
                 
                 if char == '\t':
                     # Calculate spaces needed to reach next tab stop
@@ -1275,7 +1312,7 @@ class L(_lstring.L):
                     pos = next_pos + 1
                 elif char == '\r':
                     # Check for \r\n
-                    if next_pos + 1 < length and str(self[next_pos + 1]) == '\n':
+                    if next_pos + 1 < length and self[next_pos + 1] == '\n':
                         # \r\n - yield both, reset column
                         yield self[next_pos:next_pos + 2]
                         column = 0
