@@ -48,19 +48,14 @@ void lstr_collapse(LStrObject *self) {
     if (!self || !self->buffer) return;
     if (self->buffer->is_str()) return; // already a StrBuffer
 
-    cppy::ptr py( PyObject_Str((PyObject*)self) );
-    if (!py) {
-        // propagate error to caller by leaving state unchanged
+    // Ask the buffer to collapse itself
+    Buffer *new_buf = self->buffer->collapse();
+    if (!new_buf) {
+        // No collapse performed or error occurred
         return;
     }
 
-    // Create new StrBuffer from the Python string
-    StrBuffer *new_buf = make_str_buffer(py.get());
-    if (!new_buf) {
-        return; // make_str_buffer sets an error
-    }
-
-    // Replace buffer
+    // Replace buffer with the collapsed version
     delete self->buffer;
     self->buffer = new_buf;
 }
@@ -75,10 +70,17 @@ void lstr_collapse(LStrObject *self) {
 void lstr_optimize(LStrObject *self) {
     if (!self || !self->buffer) return;
     if (self->buffer->is_str()) return;
-    if (g_optimize_threshold <= 0) return;
 
-    Py_ssize_t len = (Py_ssize_t)self->buffer->length();
-    if (len < g_optimize_threshold) lstr_collapse(self);
+    // Ask the buffer to optimize itself
+    Buffer *new_buf = self->buffer->optimize();
+    if (!new_buf) {
+        // No optimize performed or error occurred
+        return;
+    }
+
+    // Replace buffer with the optimized version
+    delete self->buffer;
+    self->buffer = new_buf;
 }
 
 
@@ -121,4 +123,55 @@ PyObject* get_string_lstr_type() {
     if (!LType) return nullptr;
     // return a new reference
     return LType.release();
+}
+
+/**
+ * @brief Create a new Python str from Buffer contents.
+ *
+ * Materializes the buffer into a concrete Python unicode object.
+ * If the buffer already wraps a Python str (StrBuffer), returns it
+ * directly with an owned reference to avoid copying.
+ *
+ * @param buf Buffer to convert (borrowed reference)
+ * @return New reference to PyObject* (str) or nullptr on error.
+ */
+PyObject* buffer_to_pystr(const Buffer* buf) {
+    if (!buf) {
+        PyErr_SetString(PyExc_ValueError, "Cannot convert nullptr buffer to str");
+        return nullptr;
+    }
+
+    // Shortcut: if buffer already wraps a Python str (StrBuffer), return it
+    // directly (with an owned reference) to avoid copying.
+    if (buf->is_str()) {
+        // Safe to static_cast because StrBuffer overrides is_str()
+        const StrBuffer *sbuf = static_cast<const StrBuffer*>(buf);
+        return cppy::incref(sbuf->get_str());
+    }
+
+    uint32_t len = buf->length();
+    int kind = buf->unicode_kind();
+
+    PyObject *py_str = nullptr;
+    if (kind == PyUnicode_1BYTE_KIND) {
+        py_str = PyUnicode_New(len, 0xFF);
+        if (!py_str) return nullptr;
+        uint8_t *data = reinterpret_cast<uint8_t*>(PyUnicode_DATA(py_str));
+        buf->copy(data, 0, len);
+    } else if (kind == PyUnicode_2BYTE_KIND) {
+        py_str = PyUnicode_New(len, 0xFFFF);
+        if (!py_str) return nullptr;
+        uint16_t *data = reinterpret_cast<uint16_t*>(PyUnicode_DATA(py_str));
+        buf->copy(data, 0, len);
+    } else if (kind == PyUnicode_4BYTE_KIND) {
+        py_str = PyUnicode_New(len, 0x10FFFF);
+        if (!py_str) return nullptr;
+        uint32_t *data = reinterpret_cast<uint32_t*>(PyUnicode_DATA(py_str));
+        buf->copy(data, 0, len);
+    } else {
+        PyErr_SetString(PyExc_RuntimeError, "Unsupported buffer kind");
+        return nullptr;
+    }
+
+    return py_str;
 }

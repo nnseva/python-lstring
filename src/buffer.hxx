@@ -525,6 +525,34 @@ public:
         return check_istitle_range(length());
     }
 
+    /**
+     * @brief Collapse the buffer to a concrete string representation.
+     *
+     * This method is a no-op in the base Buffer class. Derived classes
+     * may override to force materialization of lazy operations.
+     *
+     * @return New Buffer* if collapsed, nullptr if no change was made.
+     */
+    virtual Buffer* collapse() {
+        // No-op in base class
+        return nullptr;
+    }
+
+    /**
+     * @brief Optimize the buffer if beneficial.
+     *
+     * Derived classes
+     * may override it.
+     *
+     * @return New Buffer* if optimized, nullptr if no change was made.
+     */
+    virtual Buffer* optimize() {
+        if (g_optimize_threshold <= 0) return nullptr;
+        if ((Py_ssize_t)length() < g_optimize_threshold)
+            return collapse();
+        return nullptr;
+    }
+
 private:
     /**
      * @brief Compute the hash value for the buffer contents.

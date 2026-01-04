@@ -481,48 +481,14 @@ static PyObject* LStr_iter(PyObject *self) {
 /**
  * @brief Materialize the `L` as a concrete Python `str`.
  *
- * If the underlying Buffer already wraps a Python string, that object is
- * returned with an owned reference; otherwise a new Python string is
- * created and populated from the Buffer's contents.
+ * Delegates to buffer_to_pystr which handles both the StrBuffer shortcut
+ * and materialization of lazy buffers.
  */
 static PyObject* LStr_str(LStrObject *self) {
-    Buffer *buf = self->buffer;
-    if (!buf) {
+    if (!self->buffer) {
         PyErr_SetString(PyExc_RuntimeError, "L has no buffer");
         return nullptr;
     }
 
-    // Shortcut: if buffer already wraps a Python str (StrBuffer), return it
-    // directly (with an owned reference) to avoid copying.
-    if (buf->is_str()) {
-        // Safe to dynamic_cast because StrBuffer overrides is_str()
-        StrBuffer *sbuf = static_cast<StrBuffer*>(buf);
-        return cppy::incref(sbuf->get_str());
-    }
-
-    uint32_t len = buf->length();
-    int kind = buf->unicode_kind();
-
-    PyObject *py_str = nullptr;
-    if (kind == PyUnicode_1BYTE_KIND) {
-        py_str = PyUnicode_New(len, 0xFF);
-        if (!py_str) return nullptr;
-        uint8_t *data = reinterpret_cast<uint8_t*>(PyUnicode_DATA(py_str));
-        buf->copy(data, 0, len);
-    } else if (kind == PyUnicode_2BYTE_KIND) {
-        py_str = PyUnicode_New(len, 0xFFFF);
-        if (!py_str) return nullptr;
-        uint16_t *data = reinterpret_cast<uint16_t*>(PyUnicode_DATA(py_str));
-        buf->copy(data, 0, len);
-    } else if (kind == PyUnicode_4BYTE_KIND) {
-        py_str = PyUnicode_New(len, 0x10FFFF);
-        if (!py_str) return nullptr;
-        uint32_t *data = reinterpret_cast<uint32_t*>(PyUnicode_DATA(py_str));
-        buf->copy(data, 0, len);
-    } else {
-        PyErr_SetString(PyExc_RuntimeError, "Unsupported buffer kind");
-        return nullptr;
-    }
-
-    return py_str;
+    return buffer_to_pystr(self->buffer);
 }

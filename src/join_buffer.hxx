@@ -5,7 +5,10 @@
 #include <cstdint>
 
 #include "buffer.hxx"
+#include "str_buffer.hxx"
 #include "tptr.hxx"
+#include "lstring_utils.hxx"
+#include <cppy/ptr.h>
 
 /**
  * @brief JoinBuffer — concatenation of two buffers
@@ -252,6 +255,43 @@ public:
 
     bool isprintable() const override {
         return left_obj->buffer->isprintable() && right_obj->buffer->isprintable();
+    }
+
+    /**
+     * @brief Unconditionally collapse this join into a concrete StrBuffer.
+     *
+     * Materializes the concatenation into a Python str object, then wraps it
+     * in a StrBuffer. This is always performed regardless of threshold.
+     *
+     * @return New StrBuffer* on success, or nullptr on error.
+     */
+    Buffer* collapse() override {
+        // First convert this buffer to a Python str
+        cppy::ptr py_str(buffer_to_pystr(this));
+        if (!py_str) return nullptr;
+
+        // Then create a StrBuffer from it
+        return make_str_buffer(py_str.get());
+    }
+
+    /**
+     * @brief Optimize the buffer, recursively optimizing child buffers.
+     *
+     * First tries the base class optimization (threshold-based collapse).
+     * If that doesn't apply, recursively optimizes left and right children.
+     *
+     * @return New Buffer* if optimized, nullptr if no change was made.
+     */
+    Buffer* optimize() override {
+        // Try base class optimization first (threshold-based collapse)
+        Buffer* new_buf = Buffer::optimize();
+        if (new_buf) return new_buf;
+
+        // Recursively optimize children
+        lstr_optimize(left_obj.get());
+        lstr_optimize(right_obj.get());
+        
+        return nullptr;
     }
 };
 

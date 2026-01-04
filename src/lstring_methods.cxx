@@ -11,6 +11,7 @@
 #include "tptr.hxx"
 
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
+static PyObject* LStr_optimize(LStrObject *self, PyObject *Py_UNUSED(ignored));
 static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds);
@@ -40,6 +41,7 @@ static PyObject* LStr_istitle(LStrObject *self, PyObject *Py_UNUSED(ignored));
  */
 PyMethodDef LStr_methods[] = {
     {"collapse", (PyCFunction)LStr_collapse, METH_NOARGS, "Collapse internal buffer to a contiguous str buffer"},
+    {"optimize", (PyCFunction)LStr_optimize, METH_NOARGS, "Optimize internal buffer based on threshold"},
     {"find", (PyCFunction)LStr_find, METH_VARARGS | METH_KEYWORDS, "Find substring like str.find(sub, start=None, end=None)"},
     {"rfind", (PyCFunction)LStr_rfind, METH_VARARGS | METH_KEYWORDS, "Find last occurrence like str.rfind(sub, start=None, end=None)"},
     {"findc", (PyCFunction)LStr_findc, METH_VARARGS | METH_KEYWORDS, "Find single code point: findc(ch, start=None, end=None)"},
@@ -346,6 +348,22 @@ static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
         return nullptr;
     }
     lstr_collapse(self);
+    if (PyErr_Occurred()) return nullptr;
+    Py_RETURN_NONE;
+}
+
+/**
+ * @brief Python method wrapper: optimize(self)
+ *
+ * Exposes the internal `lstr_optimize` helper as a Python-callable
+ * method. Applies threshold-based optimization to the buffer.
+ */
+static PyObject* LStr_optimize(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
+    if (!self) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    lstr_optimize(self);
     if (PyErr_Occurred()) return nullptr;
     Py_RETURN_NONE;
 }
