@@ -1,11 +1,10 @@
 """
-Regression tests for istitle() bug fix.
+Tests for istitle() method across all buffer types.
 
-Bug: In Buffer::istitle(), the flag previous_is_cased was not set to true
-after processing lowercase letters, causing incorrect handling of consecutive
-lowercase letters after an uppercase letter.
-
-This caused strings like "Hello" to be incorrectly identified as not titlecase.
+Includes:
+- Regression tests for istitle() bug fix (consecutive lowercase handling)
+- MulBuffer boundary condition tests
+- All buffer type coverage
 """
 import unittest
 from _lstring import L
@@ -13,7 +12,14 @@ import lstring
 
 
 class TestIstitleBugFix(unittest.TestCase):
-    """Tests specifically targeting the istitle() bug with consecutive lowercase letters."""
+    """Tests specifically targeting the istitle() bug with consecutive lowercase letters.
+    
+    Bug: In Buffer::istitle(), the flag previous_is_cased was not set to true
+    after processing lowercase letters, causing incorrect handling of consecutive
+    lowercase letters after an uppercase letter.
+    
+    This caused strings like "Hello" to be incorrectly identified as not titlecase.
+    """
     
     @classmethod
     def setUpClass(cls):
@@ -187,8 +193,173 @@ class TestIstitleBugFix(unittest.TestCase):
         self.assertEqual(L("thisIsATest")[::-1][::-1].istitle(), "thisIsATest".istitle())
 
 
+class TestMulBufferIstitleBoundaries(unittest.TestCase):
+    """Test istitle() for MulBuffer with various boundary conditions."""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
+    
+    def test_empty_repeat_zero(self):
+        """Empty string (repeat_count = 0)."""
+        self.assertEqual((L("Hello") * 0).istitle(), "".istitle())
+    
+    def test_single_repeat(self):
+        """Single repetition (repeat_count = 1)."""
+        self.assertEqual((L("Hello") * 1).istitle(), "Hello".istitle())
+        self.assertEqual((L("Hello World") * 1).istitle(), "Hello World".istitle())
+        self.assertEqual((L("HELLO") * 1).istitle(), "HELLO".istitle())
+    
+    def test_space_at_start(self):
+        """Space at the start of base string."""
+        base = " Hello"
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected, 
+                           f"Failed for '{base}' * {count}")
+    
+    def test_space_at_end(self):
+        """Space at the end of base string."""
+        base = "Hello "
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_space_in_middle(self):
+        """Space in the middle of base string."""
+        base = "Hello World"
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_uppercase_at_start(self):
+        """Uppercase letter at the start."""
+        base = "Hello"
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_uppercase_at_end(self):
+        """Uppercase letter at the end."""
+        base = "helloW"
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_uppercase_in_middle(self):
+        """Uppercase letter in the middle."""
+        base = "helLo"
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_all_uppercase(self):
+        """All uppercase letters."""
+        base = "HELLO"
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_all_lowercase(self):
+        """All lowercase letters."""
+        base = "hello"
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_boundary_violation(self):
+        """Test that boundary between repetitions is checked."""
+        # "Hello" is title, but "HelloHello" is not (lowercase 'o' before 'H')
+        base = "Hello"
+        self.assertTrue((L(base) * 1).istitle())
+        self.assertFalse((L(base) * 2).istitle())
+        self.assertFalse((L(base) * 3).istitle())
+    
+    def test_boundary_with_space(self):
+        """Space at end allows next word to start with uppercase."""
+        base = "Hello "
+        for count in [1, 2, 3, 10]:
+            result = (L(base) * count).istitle()
+            expected = (base * count).istitle()
+            self.assertEqual(result, expected,
+                           f"Failed for '{base}' * {count}")
+    
+    def test_complex_patterns(self):
+        """Complex patterns with mixed cases."""
+        patterns = [
+            "A",
+            "Ab",
+            "Ab ",
+            " Ab",
+            "A B",
+            "Ab Cd",
+            "Ab Cd ",
+            " Ab Cd",
+        ]
+        for base in patterns:
+            for count in [1, 2, 3, 5]:
+                result = (L(base) * count).istitle()
+                expected = (base * count).istitle()
+                self.assertEqual(result, expected,
+                               f"Failed for '{base}' * {count}")
+    
+    def test_no_cased_characters(self):
+        """Strings with no cased characters."""
+        patterns = ["123", "   ", "!@#", ""]
+        for base in patterns:
+            for count in [0, 1, 2, 3]:
+                if count == 0:
+                    result = (L("x") * 0).istitle()
+                else:
+                    result = (L(base) * count).istitle()
+                expected = (base * count).istitle()
+                self.assertEqual(result, expected,
+                               f"Failed for '{base}' * {count}")
+    
+    def test_single_character_patterns(self):
+        """Single character base strings."""
+        patterns = ["A", "a", " ", "1"]
+        for base in patterns:
+            for count in [1, 2, 3, 10]:
+                result = (L(base) * count).istitle()
+                expected = (base * count).istitle()
+                self.assertEqual(result, expected,
+                               f"Failed for '{base}' * {count}")
+
+
 class TestIstitleAllBufferTypes(unittest.TestCase):
     """Test istitle() across all buffer types to ensure consistent behavior."""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_thresh = lstring.get_optimize_threshold()
+        # disable C-level automatic collapsing/optimization for deterministic behavior
+        lstring.set_optimize_threshold(0)
+
+    @classmethod
+    def tearDownClass(cls):
+        lstring.set_optimize_threshold(cls._orig_thresh)
     
     def test_str_buffer(self):
         """StrBuffer (direct string)."""
