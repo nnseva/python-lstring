@@ -101,6 +101,38 @@ class L(_lstring.L):
         """
         return printf(self, values)
     
+    def format(self, *args, **kwargs):
+        """
+        Format string using str.format() syntax.
+        
+        Supports positional, numbered, and named placeholders:
+        - Auto-numbered: {}, {:.2f}, {!r}
+        - Numbered: {0}, {1}, {0:.2f}
+        - Named: {name}, {key:.2f}, {obj.attr}
+        
+        Args:
+            *args: Positional arguments for formatting
+            **kwargs: Keyword arguments for formatting
+        
+        Returns:
+            L: Formatted lazy string
+        
+        Examples:
+            >>> L('Hello {}').format('world')
+            L('Hello world')
+            >>> L('{name} is {age}').format(name='Alice', age=30)
+            L('Alice is 30')
+            >>> L('{0} {1} {0}').format('hello', 'world')
+            L('hello world hello')
+        
+        Notes:
+            - Cannot mix auto-numbered ({}) and numbered ({0}) placeholders
+            - Keeps non-formatted parts of the string lazy
+            - Supports nested placeholders in format specs
+        """
+        from .format import format as format_func
+        return format_func(self, *args, **kwargs)
+    
     def join(self, iterable):
         """
         Join elements of iterable with self as separator.

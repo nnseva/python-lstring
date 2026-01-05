@@ -215,3 +215,179 @@ def printf(format_str, placeholders: Union[dict, tuple]):
     else:
         # Single value - wrap in tuple for positional formatting
         return _printf_pos(format_str, (placeholders,))
+
+
+def _find_outer_placeholders(format_str):
+    """
+    Find all outer-level placeholders in a format string.
+    
+    Yields tuples of (start, end, content) for each placeholder,
+    where content is the text inside {...} (without braces).
+    Also yields ('literal', start, end) for literal {{ and }} sequences.
+    
+    Args:
+        format_str: L instance containing format string
+    
+    Yields:
+        tuple: ('placeholder', start, end, content) or ('literal', start, end, text)
+    """
+    pos = 0
+    length = len(format_str)
+    
+    while pos < length:
+        # Find next { or }
+        open_pos = format_str.findc('{', pos)
+        close_pos = format_str.findc('}', pos)
+        
+        # Determine which comes first
+        if open_pos == -1 and close_pos == -1:
+            break  # No more braces
+        elif open_pos == -1:
+            next_pos = close_pos
+            next_char = '}'
+        elif close_pos == -1:
+            next_pos = open_pos
+            next_char = '{'
+        else:
+            if open_pos < close_pos:
+                next_pos = open_pos
+                next_char = '{'
+            else:
+                next_pos = close_pos
+                next_char = '}'
+        
+        # Check for escape sequences
+        if next_char == '{':
+            if next_pos + 1 < length and format_str[next_pos + 1] == '{':
+                # {{ escape - literal {
+                yield ('literal', next_pos, next_pos + 2, '{')
+                pos = next_pos + 2
+                continue
+            else:
+                # Start of placeholder - find matching }
+                start = next_pos
+                depth = 1
+                pos = next_pos + 1
+                
+                while pos < length and depth > 0:
+                    ch = format_str[pos]
+                    if ch == '{':
+                        depth += 1
+                    elif ch == '}':
+                        # Inside placeholder, } always closes a level
+                        # No }} escape handling here - that's only at depth 0
+                        depth -= 1
+                    pos += 1
+                
+                if depth == 0:
+                    # Found complete placeholder
+                    content = format_str[start + 1:pos - 1]
+                    yield ('placeholder', start, pos, content)
+                else:
+                    # Unclosed brace - let str.format handle the error
+                    pos = start + 1
+        else:  # next_char == '}'
+            if next_pos + 1 < length and format_str[next_pos + 1] == '}':
+                # }} escape - literal }
+                yield ('literal', next_pos, next_pos + 2, '}')
+                pos = next_pos + 2
+            else:
+                # Unmatched } - let str.format handle the error
+                pos = next_pos + 1
+
+
+def format(format_str, *args, **kwargs):
+    """
+    Format a lazy string using str.format() syntax.
+    
+    This function implements str.format() style formatting for L instances.
+    It finds placeholders in the string, materializes only those parts,
+    applies formatting using str's format() method, and joins the result.
+    
+    Args:
+        format_str: Format string (L or str instance)
+        *args: Positional arguments for formatting
+        **kwargs: Keyword arguments for formatting
+    
+    Returns:
+        L: Formatted lazy string
+    
+    Examples:
+        >>> format(L('Hello {}'), 'world')
+        L('Hello world')
+        >>> format(L('{name} is {age}'), name='Alice', age=30)
+        L('Alice is 30')
+        >>> format(L('{0} {1} {0}'), 'hello', 'world')
+        L('hello world hello')
+    
+    Notes:
+        - Supports positional, numbered, and named placeholders
+        - Cannot mix auto-numbered ({}) and numbered ({0}) placeholders
+        - Keeps non-formatted parts of the string lazy
+        - Format specs with nested placeholders are supported
+    """
+    from . import L
+    
+    # Convert format_str to L if needed
+    if isinstance(format_str, str):
+        format_str = L(format_str)
+    
+    def format_parts():
+        """Generator that yields formatted parts of the string."""
+        last_pos = 0
+        auto_arg_index = 0  # For auto-numbered placeholders
+        has_auto = False
+        has_numbered = False
+        
+        for token in _find_outer_placeholders(format_str):
+            token_type = token[0]
+            start = token[1]
+            end = token[2]
+            
+            # Yield static part before this token
+            if start > last_pos:
+                yield format_str[last_pos:start]
+            
+            if token_type == 'literal':
+                # Literal { or } from escape sequence
+                yield L(token[3])
+            else:
+                # Placeholder
+                content = token[3]
+                placeholder_str = '{' + str(content) + '}'
+                
+                # Determine placeholder type by looking at first character
+                # Check if it's auto-numbered, numbered, or named
+                if len(content) == 0 or content[0] in ':.![':
+                    # Auto-numbered: {}, {:.2f}, {!r}
+                    has_auto = True
+                    if has_numbered:
+                        raise ValueError("cannot mix auto and manual numbering")
+                    
+                    # Format with args[auto_arg_index:]
+                    formatted = placeholder_str.format(*args[auto_arg_index:], **kwargs)
+                    auto_arg_index += 1
+                    
+                elif content[0].isdigit():
+                    # Numbered: {0}, {1:.2f}
+                    has_numbered = True
+                    if has_auto:
+                        raise ValueError("cannot mix auto and manual numbering")
+                    
+                    # Format with all args
+                    formatted = placeholder_str.format(*args, **kwargs)
+                    
+                else:
+                    # Named or attribute/index access: {name}, {obj.attr}, {dict[key]}
+                    # Format with all args and kwargs
+                    formatted = placeholder_str.format(*args, **kwargs)
+                
+                yield L(formatted)
+            
+            last_pos = end
+        
+        # Yield remaining part after last token
+        if last_pos < len(format_str):
+            yield format_str[last_pos:]
+    
+    return L('').join(format_parts())
