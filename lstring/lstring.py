@@ -1411,6 +1411,40 @@ class L(_lstring.L):
         return self.rjust(width, '0')
     
     # ============================================================================
+    # Character Type Checks
+    # ============================================================================
+    
+    def isascii(self):
+        """
+        Return True if all characters are ASCII (code points < 128), False otherwise.
+        
+        Uses findcr() to efficiently search for any non-ASCII character.
+        Returns True for empty strings (consistent with Python str.isascii()).
+        
+        Returns:
+            bool: True if all characters are ASCII, False otherwise
+        
+        Examples:
+            >>> L('hello').isascii()
+            True
+            >>> L('').isascii()
+            True
+            >>> L('hello123').isascii()
+            True
+            >>> L('привет').isascii()
+            False
+            >>> L('hello🌍').isascii()
+            False
+        """
+        # Empty string is ASCII
+        if len(self) == 0:
+            return True
+        
+        # Find first character NOT in ASCII range [0, 128)
+        pos = self.findcr(0, 128, invert=True)
+        return pos == -1  # True if no non-ASCII character found
+    
+    # ============================================================================
     # Translation and Encoding
     # ============================================================================
     

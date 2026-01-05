@@ -65,7 +65,7 @@ def _printf_pos(format_str, placeholders: tuple):
     Returns:
         L: Formatted lazy string
     """
-    from . import L
+    from .lstring import L
     
     # Initialize patterns if needed
     _init_patterns()
@@ -125,7 +125,7 @@ def _printf_dict(format_str, placeholders: Mapping):
     Returns:
         L: Formatted lazy string
     """
-    from . import L
+    from .lstring import L
     
     # Initialize patterns if needed
     _init_patterns()
@@ -202,7 +202,7 @@ def printf(format_str, placeholders: Union[dict, tuple]):
         - Keeps non-formatted parts of the string lazy
     """
     # Import L here to avoid circular imports
-    from . import L
+    from .lstring import L
     
     # Convert format_str to L if needed
     if isinstance(format_str, str):
@@ -327,7 +327,7 @@ def format(format_str, args=(), kwargs=types.MappingProxyType({})):
         - Keeps non-formatted parts of the string lazy
         - Format specs with nested placeholders are supported
     """
-    from . import L
+    from .lstring import L
     
     # Convert format_str to L if needed
     if isinstance(format_str, str):

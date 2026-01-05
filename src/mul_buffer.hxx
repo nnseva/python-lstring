@@ -227,6 +227,46 @@ public:
     }
 
     /**
+     * @brief Find first character in code point range [startcp, endcp).
+     * 
+     * Optimized for MulBuffer: since the base string repeats, if a character
+     * exists anywhere in the repeated string, it will be found within the first
+     * base_len characters. Limit search range and delegate to base class.
+     */
+    Py_ssize_t findcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert) const override {
+        Py_ssize_t base_len = lstr_obj->buffer->length();
+        if (base_len <= 0) return -1;
+        
+        // If search range exceeds base_len, clamp to base_len
+        if (end - start > base_len) {
+            end = start + base_len;
+        }
+        
+        // Delegate to base class implementation
+        return Buffer::findcr(start, end, startcp, endcp, invert);
+    }
+
+    /**
+     * @brief Find last character in code point range [startcp, endcp).
+     * 
+     * Optimized for MulBuffer: since the base string repeats, if a character
+     * exists anywhere in the repeated string, it will be found within the last
+     * base_len characters. Limit search range and delegate to base class.
+     */
+    Py_ssize_t rfindcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert) const override {
+        Py_ssize_t base_len = lstr_obj->buffer->length();
+        if (base_len <= 0) return -1;
+        
+        // If search range exceeds base_len, clamp to last base_len characters
+        if (end - start > base_len) {
+            start = end - base_len;
+        }
+        
+        // Delegate to base class implementation
+        return Buffer::rfindcr(start, end, startcp, endcp, invert);
+    }
+
+    /**
      * @brief Character classification methods with delegation to base buffer.
      *
      * If a property holds for all characters in the base string, it holds

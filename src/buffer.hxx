@@ -247,6 +247,70 @@ public:
     }
 
     /**
+     * @brief Find any character in code point range searching forward.
+     *
+     * Searches for any code point in range [startcp, endcp) between
+     * indices [start, end) and returns the index of the first occurrence
+     * or -1 when not found. Both start and end are interpreted as given
+     * (negative values are not adjusted by this helper).
+     *
+     * @param start Start index (inclusive)
+     * @param end End index (exclusive)
+     * @param startcp Start of code point range (inclusive)
+     * @param endcp End of code point range (exclusive)
+     * @param invert If true, find first character NOT in range
+     * @return Index of first matching character, or -1 if not found
+     */
+    virtual Py_ssize_t findcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert = false) const {
+        if (start < 0) start = 0;
+        Py_ssize_t len = length();
+        if (end > len) end = len;
+        if (start >= end) return -1;
+        if (startcp >= endcp) return -1;
+        
+        for (Py_ssize_t i = start; i < end; ++i) {
+            uint32_t ch = value(i);
+            bool in_range = (ch >= startcp && ch < endcp);
+            if (in_range != invert) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * @brief Find any character in code point range searching backward.
+     *
+     * Searches for any code point in range [startcp, endcp) between
+     * indices [start, end) from the right and returns the index of the
+     * last occurrence or -1 when not found. Both start and end are
+     * interpreted as given (negative values are not adjusted by this helper).
+     *
+     * @param start Start index (inclusive)
+     * @param end End index (exclusive)
+     * @param startcp Start of code point range (inclusive)
+     * @param endcp End of code point range (exclusive)
+     * @param invert If true, find last character NOT in range
+     * @return Index of last matching character, or -1 if not found
+     */
+    virtual Py_ssize_t rfindcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert = false) const {
+        if (start < 0) start = 0;
+        Py_ssize_t len = length();
+        if (end > len) end = len;
+        if (start >= end) return -1;
+        if (startcp >= endcp) return -1;
+        
+        for (Py_ssize_t i = end - 1; i >= start; --i) {
+            uint32_t ch = value(i);
+            bool in_range = (ch >= startcp && ch < endcp);
+            if (in_range != invert) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
      * @brief Find first character matching character class(es) searching forward.
      *
      * Searches for a character that matches the specified character class mask
