@@ -277,6 +277,59 @@ class L(_lstring.L):
         # Compare substring with suffix
         return self[end - suffix_len:end] == suffix
     
+    def removeprefix(self, prefix):
+        """
+        Remove prefix from the beginning of the string if present.
+        
+        If the string starts with the prefix, return a lazy slice without it.
+        Otherwise, return the original string unchanged.
+        
+        Args:
+            prefix: String or L instance to remove from the beginning
+        
+        Returns:
+            L: String with prefix removed, or original string if prefix not found
+        
+        Examples:
+            >>> L('TestHook').removeprefix('Test')
+            L('Hook')
+            >>> L('BaseTestCase').removeprefix('Test')
+            L('BaseTestCase')
+            >>> L('hello').removeprefix('')
+            L('hello')
+        """
+        if self.startswith(prefix):
+            return self[len(prefix):]
+        return self
+    
+    def removesuffix(self, suffix):
+        """
+        Remove suffix from the end of the string if present.
+        
+        If the string ends with the suffix, return a lazy slice without it.
+        Otherwise, return the original string unchanged.
+        
+        Args:
+            suffix: String or L instance to remove from the end
+        
+        Returns:
+            L: String with suffix removed, or original string if suffix not found
+        
+        Examples:
+            >>> L('MiscTests').removesuffix('Tests')
+            L('Misc')
+            >>> L('TmpDirMixin').removesuffix('Tests')
+            L('TmpDirMixin')
+            >>> L('hello').removesuffix('')
+            L('hello')
+        """
+        if self.endswith(suffix):
+            suffix_len = len(suffix)
+            if suffix_len == 0:
+                return self
+            return self[:-suffix_len]
+        return self
+    
     def index(self, sub, start=None, end=None):
         """
         Find the lowest index where substring is found, raise ValueError if not found.
@@ -1443,6 +1496,38 @@ class L(_lstring.L):
         # Find first character NOT in ASCII range [0, 128)
         pos = self.findcr(0, 128, invert=True)
         return pos == -1  # True if no non-ASCII character found
+    
+    def isidentifier(self):
+        """
+        Return True if string is a valid Python identifier, False otherwise.
+        
+        A valid identifier consists of ASCII letters, digits, and underscores,
+        starting with a letter or underscore. Additionally, must not be a
+        Python keyword.
+        
+        Delegates to str.isidentifier() for correct Unicode handling and
+        keyword checking.
+        
+        Returns:
+            bool: True if string is a valid identifier, False otherwise
+        
+        Examples:
+            >>> L('hello').isidentifier()
+            True
+            >>> L('_private').isidentifier()
+            True
+            >>> L('var_name_123').isidentifier()
+            True
+            >>> L('123abc').isidentifier()
+            False
+            >>> L('hello-world').isidentifier()
+            False
+            >>> L('class').isidentifier()
+            False
+            >>> L('').isidentifier()
+            False
+        """
+        return str(self).isidentifier()
     
     # ============================================================================
     # Translation and Encoding
