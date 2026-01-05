@@ -59,6 +59,19 @@ class TestSplit(unittest.TestCase):
         self.assertEqual(L("a b c d").split(None, 1), [L('a'), L('b c d')])
         self.assertEqual(L("a  b  c  d").split(None, 2), [L('a'), L('b'), L('c  d')])
     
+    def test_split_whitespace_maxsplit_no_trailing_space(self):
+        """Split by whitespace with maxsplit when string ends without space."""
+        # This covers the edge case where space == -1 in split() loop
+        self.assertEqual(L("a b c").split(None, 1), [L('a'), L('b c')])
+        self.assertEqual(L("a b c").split(None, 2), [L('a'), L('b'), L('c')])
+        self.assertEqual(L("word1 word2").split(None, 1), [L('word1'), L('word2')])
+        # maxsplit larger than actual number of segments - hits space == -1 case
+        self.assertEqual(L("a b c").split(None, 10), [L('a'), L('b'), L('c')])
+        self.assertEqual(L("word").split(None, 5), [L('word')])
+        # Edge case: leading spaces, word at end - hits pos >= length case (line 711)
+        self.assertEqual(L("  a").split(None, 10), [L('a')])
+        self.assertEqual(L("   word").split(None, 5), [L('word')])
+    
     def test_split_empty_string(self):
         """Split empty string."""
         self.assertEqual(L("").split(','), [L('')])
@@ -124,6 +137,19 @@ class TestRSplit(unittest.TestCase):
         """RSplit by whitespace with maxsplit."""
         self.assertEqual(L("a b c d").rsplit(None, 1), [L('a b c'), L('d')])
         self.assertEqual(L("a  b  c  d").rsplit(None, 2), [L('a  b'), L('c'), L('d')])
+    
+    def test_rsplit_whitespace_maxsplit_no_leading_space(self):
+        """RSplit by whitespace with maxsplit when string starts without space."""
+        # This covers the edge case where space == -1 in rsplit() loop
+        self.assertEqual(L("a b c").rsplit(None, 1), [L('a b'), L('c')])
+        self.assertEqual(L("a b c").rsplit(None, 2), [L('a'), L('b'), L('c')])
+        self.assertEqual(L("word1 word2").rsplit(None, 1), [L('word1'), L('word2')])
+        # maxsplit larger than actual number of segments - hits space == -1 case
+        self.assertEqual(L("a b c").rsplit(None, 10), [L('a'), L('b'), L('c')])
+        self.assertEqual(L("word").rsplit(None, 5), [L('word')])
+        # Edge case: word at start, trailing spaces - hits pos <= 0 case (line 830)
+        self.assertEqual(L("a  ").rsplit(None, 10), [L('a')])
+        self.assertEqual(L("word   ").rsplit(None, 5), [L('word')])
     
     def test_rsplit_empty_string(self):
         """RSplit empty string."""

@@ -707,9 +707,6 @@ class L(_lstring.L):
                 break
             pos = non_space
             
-            if pos >= length:
-                break
-            
             # Find end of non-whitespace segment using findcc
             start = pos
             space = self.findcc(CharClass.SPACE, pos, length)
@@ -825,9 +822,6 @@ class L(_lstring.L):
             if non_space == -1:
                 break
             pos = non_space + 1  # rfindcc returns index, we need position after it
-            
-            if pos <= 0:
-                break
             
             # Find start of non-whitespace segment using rfindcc
             end = pos
@@ -1547,7 +1541,7 @@ class L(_lstring.L):
             >>> table = str.maketrans('aeiou', '12345')
             >>> L('hello world').translate(table)
             L('h2ll4 w4rld')
-            >>> table = str.maketrans('', '', 'aeiou')
+            >>> table = str.maketran>s('', '', 'aeiou')
             >>> L('hello world').translate(table)
             L('hll wrld')
         """

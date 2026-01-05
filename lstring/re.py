@@ -189,7 +189,7 @@ class Pattern(_lstring.re.Pattern):
     
     @staticmethod
     def _convert_python_to_boost(pattern):
-        """Convert Python re pattern syntax to Boost regex syntax.
+        r"""Convert Python re pattern syntax to Boost regex syntax.
         
         Converts:
         - (?P<name>...) to (?<name>...)  (named groups)
