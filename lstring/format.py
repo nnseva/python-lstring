@@ -6,6 +6,7 @@ allowing format strings to remain lazy while delegating actual formatting
 to Python's built-in str % operator.
 """
 
+import types
 from typing import Union
 from collections.abc import Mapping
 
@@ -296,7 +297,7 @@ def _find_outer_placeholders(format_str):
                 pos = next_pos + 1
 
 
-def format(format_str, *args, **kwargs):
+def format(format_str, args=(), kwargs=types.MappingProxyType({})):
     """
     Format a lazy string using str.format() syntax.
     
@@ -306,18 +307,18 @@ def format(format_str, *args, **kwargs):
     
     Args:
         format_str: Format string (L or str instance)
-        *args: Positional arguments for formatting
-        **kwargs: Keyword arguments for formatting
+        args: Positional arguments for formatting (tuple or None)
+        kwargs: Keyword arguments for formatting (dict or None)
     
     Returns:
         L: Formatted lazy string
     
     Examples:
-        >>> format(L('Hello {}'), 'world')
+        >>> format(L('Hello {}'), args=('world',))
         L('Hello world')
-        >>> format(L('{name} is {age}'), name='Alice', age=30)
+        >>> format(L('{name} is {age}'), kwargs={'name': 'Alice', 'age': 30})
         L('Alice is 30')
-        >>> format(L('{0} {1} {0}'), 'hello', 'world')
+        >>> format(L('{0} {1} {0}'), args=('hello', 'world'))
         L('hello world hello')
     
     Notes:
@@ -331,6 +332,15 @@ def format(format_str, *args, **kwargs):
     # Convert format_str to L if needed
     if isinstance(format_str, str):
         format_str = L(format_str)
+    
+    # Create formatting function closure to avoid checking condition in loop
+    # Use format_map when there are no positional args - works for both dict and Mapping
+    if len(args) == 0:
+        def do_format(placeholder_str, args_slice=()):
+            return placeholder_str.format_map(kwargs)
+    else:
+        def do_format(placeholder_str, args_slice=args):
+            return placeholder_str.format(*args_slice, **kwargs)
     
     def format_parts():
         """Generator that yields formatted parts of the string."""
@@ -365,7 +375,7 @@ def format(format_str, *args, **kwargs):
                         raise ValueError("cannot mix auto and manual numbering")
                     
                     # Format with args[auto_arg_index:]
-                    formatted = placeholder_str.format(*args[auto_arg_index:], **kwargs)
+                    formatted = do_format(placeholder_str, args[auto_arg_index:])
                     auto_arg_index += 1
                     
                 elif content[0].isdigit():
@@ -375,12 +385,12 @@ def format(format_str, *args, **kwargs):
                         raise ValueError("cannot mix auto and manual numbering")
                     
                     # Format with all args
-                    formatted = placeholder_str.format(*args, **kwargs)
+                    formatted = do_format(placeholder_str)
                     
                 else:
                     # Named or attribute/index access: {name}, {obj.attr}, {dict[key]}
                     # Format with all args and kwargs
-                    formatted = placeholder_str.format(*args, **kwargs)
+                    formatted = do_format(placeholder_str)
                 
                 yield L(formatted)
             

@@ -138,7 +138,36 @@ class L(_lstring.L):
             - Keeps non-formatted parts of the string lazy
             - Supports nested placeholders in format specs
         """
-        return _format(self, *args, **kwargs)
+        return _format(self, args=args, kwargs=kwargs)
+    
+    def format_map(self, mapping):
+        """
+        Format string using a mapping, similar to str.format_map().
+        
+        Like format(**mapping), but uses the mapping directly without copying.
+        This allows using dict subclasses with custom __missing__ methods.
+        
+        Args:
+            mapping: A mapping object (typically a dict or dict subclass)
+        
+        Returns:
+            L: Formatted lazy string
+        
+        Examples:
+            >>> L('{name} is {age}').format_map({'name': 'Alice', 'age': 30})
+            L('Alice is 30')
+            >>> class Default(dict):
+            ...     def __missing__(self, key):
+            ...         return f'<{key}>'
+            >>> L('{name} was born in {country}').format_map(Default(name='Guido'))
+            L('Guido was born in <country>')
+        
+        Notes:
+            - More efficient than format(**mapping) as it doesn't copy the dict
+            - Allows custom dict subclasses with __missing__ to provide defaults
+            - Cannot be used with positional arguments, only named placeholders
+        """
+        return _format(self, kwargs=mapping)
     
     # ============================================================================
     # Searching and Replacing
