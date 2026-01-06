@@ -7,22 +7,43 @@ exposing Pattern and Match classes that can be extended in Python.
 
 import _lstring
 from lstring import L
+from enum import IntFlag
+
+class RegexFlag(IntFlag):
+    """Python `re`-like flags.
+
+    Numeric values intentionally match CPython's `re` module.
+    """
+
+    IGNORECASE = 2
+    MULTILINE = 8
+    DOTALL = 16
+    VERBOSE = 64
+
+    I = IGNORECASE
+    M = MULTILINE
+    S = DOTALL
+    X = VERBOSE
+
 
 # Public flags (Python re-like).
 #
 # Note: Boost.Regex defaults differ from Python's `re` defaults for at least
 # MULTILINE and DOTALL. We provide re-like flags here and translate them into
 # Boost.Regex syntax flags when compiling patterns.
-IGNORECASE = 2
-I = IGNORECASE
-MULTILINE = 8
-M = MULTILINE
-DOTALL = 16
-S = DOTALL
-VERBOSE = 64
-X = VERBOSE
+IGNORECASE = RegexFlag.IGNORECASE
+I = RegexFlag.I
+MULTILINE = RegexFlag.MULTILINE
+M = RegexFlag.M
+DOTALL = RegexFlag.DOTALL
+S = RegexFlag.S
+VERBOSE = RegexFlag.VERBOSE
+X = RegexFlag.X
 
 _PY_FLAG_MASK = IGNORECASE | MULTILINE | DOTALL | VERBOSE
+# CPython's `re.UNICODE` flag bit. In modern Python it is the default for str
+# patterns; we accept it for compatibility and ignore it silently.
+_PY_UNICODE_FLAG = 32
 
 
 class Match(_lstring.re.Match):
@@ -217,16 +238,47 @@ class Pattern(_lstring.re.Pattern):
     def _to_boost_syntax_flags(flags: int) -> int:
         """Translate Python-like flags into Boost.Regex syntax flags.
 
-        If the caller uses any Python-like flag bits (I/M/S/X), we apply Python
-        defaults (MULTILINE off, DOTALL off) by explicitly setting Boost's
-        `no_mod_m` and `no_mod_s` unless the corresponding Python flag requests
-        otherwise.
+        This function is used only in Python-compatible mode.
 
-        If the caller passes only Boost flags (no Python-like bits), we pass them
-        through unchanged.
+        Boost.Regex defaults differ from Python's `re` defaults (notably for
+        MULTILINE and DOTALL), so we always apply Python defaults here by
+        explicitly setting Boost's `no_mod_m` and `no_mod_s` unless the
+        corresponding Python flag requests otherwise.
+
+        Unsupported standard `re` flags are ignored with a warning, except
+        UNICODE which is ignored silently.
         """
-        boost_flags = int(flags) & ~_PY_FLAG_MASK
-        using_python_flags = bool(int(flags) & _PY_FLAG_MASK)
+        import warnings
+
+        flags_int = int(flags)
+
+        # In compatible mode we expose a Python-like API, so we do not accept
+        # arbitrary Boost-specific bits via `flags`. Warn and ignore anything
+        # outside the supported Python-like subset, except UNICODE.
+        supported = int(_PY_FLAG_MASK | _PY_UNICODE_FLAG)
+        unsupported = flags_int & ~supported
+        if unsupported:
+            known = {
+                1: 'TEMPLATE',
+                4: 'LOCALE',
+                128: 'DEBUG',
+                256: 'ASCII',
+            }
+            parts = [name for bit, name in known.items() if unsupported & bit]
+            remaining = unsupported & ~sum(known.keys())
+            if remaining:
+                parts.append(hex(remaining))
+            details = '|'.join(parts) if parts else hex(unsupported)
+            warnings.warn(
+                f"Unsupported re flags in compatible mode are ignored: {details}",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+
+        # Only supported Python-like bits remain (UNICODE ignored silently).
+        flags_int &= int(_PY_FLAG_MASK)
+
+        boost_flags = 0
 
         # If the extension doesn't expose Boost flag constants, fall back to
         # pass-through behaviour.
@@ -239,21 +291,18 @@ class Pattern(_lstring.re.Pattern):
         except Exception:
             return boost_flags
 
-        if not using_python_flags:
-            return boost_flags
-
         # IGNORECASE
-        if int(flags) & IGNORECASE:
+        if flags_int & IGNORECASE:
             boost_flags |= boost_icase
 
         # MULTILINE (Python default: off)
-        if int(flags) & MULTILINE:
+        if flags_int & MULTILINE:
             boost_flags &= ~boost_no_mod_m
         else:
             boost_flags |= boost_no_mod_m
 
         # DOTALL (Python default: off)
-        if int(flags) & DOTALL:
+        if flags_int & DOTALL:
             boost_flags &= ~boost_no_mod_s
             boost_flags |= boost_mod_s
         else:
@@ -261,7 +310,7 @@ class Pattern(_lstring.re.Pattern):
             boost_flags &= ~boost_mod_s
 
         # VERBOSE (Python default: off)
-        if int(flags) & VERBOSE:
+        if flags_int & VERBOSE:
             boost_flags |= boost_mod_x
 
         return boost_flags
@@ -740,6 +789,7 @@ def subn(pattern, repl, string, count=0, flags=0):
 __all__ = [
     'Pattern',
     'Match',
+    'RegexFlag',
     'compile',
     'match',
     'search',

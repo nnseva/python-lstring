@@ -372,6 +372,48 @@ class TestPatternConstructorInlineUnsupportedFlags(unittest.TestCase):
         self.assertTrue(any('(?a)' in str(w.message) for w in caught), [str(w.message) for w in caught])
 
 
+class TestPatternConstructorUnsupportedStdlibFlags(unittest.TestCase):
+    def test_constructor_flag_unicode_is_silent(self):
+        import re
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('abc'), flags=re.UNICODE, compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertEqual([str(w.message) for w in caught], [])
+
+    def test_constructor_flag_locale_warns(self):
+        import re
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('abc'), flags=re.LOCALE, compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertTrue(any('LOCALE' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
+    def test_constructor_flag_ascii_warns(self):
+        import re
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('abc'), flags=re.ASCII, compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertTrue(any('ASCII' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
+    def test_constructor_flag_debug_warns(self):
+        import re
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('abc'), flags=re.DEBUG, compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertTrue(any('DEBUG' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
+
 if __name__ == '__main__':
     unittest.main()
 

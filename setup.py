@@ -148,6 +148,7 @@ ext_modules = [
             'src/lstring_re_regex.hxx',
             'src/lstring_re_pattern.hxx',
             'src/lstring_re_match.hxx',
+            'src/lstring_re_icu_traits.hxx',
         ],
         language='c++',
     ),
