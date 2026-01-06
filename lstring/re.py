@@ -25,59 +25,6 @@ X = VERBOSE
 _PY_FLAG_MASK = IGNORECASE | MULTILINE | DOTALL | VERBOSE
 
 
-def _to_boost_syntax_flags(flags: int) -> int:
-    """Translate Python-like flags into Boost.Regex syntax flags.
-
-    If the caller uses any Python-like flag bits (I/M/S/X), we apply Python
-    defaults (MULTILINE off, DOTALL off) by explicitly setting Boost's
-    `no_mod_m` and `no_mod_s` unless the corresponding Python flag requests
-    otherwise.
-
-    If the caller passes only Boost flags (no Python-like bits), we pass them
-    through unchanged.
-    """
-    boost_flags = int(flags) & ~_PY_FLAG_MASK
-    using_python_flags = bool(int(flags) & _PY_FLAG_MASK)
-
-    # If the extension doesn't expose Boost flag constants, fall back to
-    # pass-through behaviour.
-    try:
-        boost_icase = int(_lstring.re.IGNORECASE)
-        boost_no_mod_m = int(_lstring.re.NO_MOD_M)
-        boost_no_mod_s = int(_lstring.re.NO_MOD_S)
-        boost_mod_s = int(_lstring.re.MOD_S)
-        boost_mod_x = int(_lstring.re.MOD_X)
-    except Exception:
-        return boost_flags
-
-    if not using_python_flags:
-        return boost_flags
-
-    # IGNORECASE
-    if int(flags) & IGNORECASE:
-        boost_flags |= boost_icase
-
-    # MULTILINE (Python default: off)
-    if int(flags) & MULTILINE:
-        boost_flags &= ~boost_no_mod_m
-    else:
-        boost_flags |= boost_no_mod_m
-
-    # DOTALL (Python default: off)
-    if int(flags) & DOTALL:
-        boost_flags &= ~boost_no_mod_s
-        boost_flags |= boost_mod_s
-    else:
-        boost_flags |= boost_no_mod_s
-        boost_flags &= ~boost_mod_s
-
-    # VERBOSE (Python default: off)
-    if int(flags) & VERBOSE:
-        boost_flags |= boost_mod_x
-
-    return boost_flags
-
-
 class Match(_lstring.re.Match):
     """
     Match object - a Python wrapper around the C++ implementation.
@@ -126,17 +73,27 @@ class Match(_lstring.re.Match):
         # Convert str to lstring.L if needed
         if isinstance(subject, str):
             subject = L(subject)
-        
         # Call C++ __init__
         super().__init__(pattern, subject)
+
+    def _where_type(self):
+        """Return the concrete runtime type of the underlying subject.
+
+        Uses Match.where (C++ getter). Falls back to L if unavailable.
+        """
+        try:
+            return type(self.where)
+        except Exception:
+            return L
     
     def group(self, *args):
         """Return one or more subgroups of the match."""
-        # Convert str arguments to L
+        # Convert str arguments to the runtime type of match subject.
+        subject_type = self._where_type()
         converted_args = []
         for arg in args:
             if isinstance(arg, str):
-                converted_args.append(L(arg))
+                converted_args.append(subject_type(arg))
             else:
                 converted_args.append(arg)
         return super().group(*converted_args)
@@ -144,25 +101,25 @@ class Match(_lstring.re.Match):
     def __getitem__(self, key):
         """Return subgroup by index or name."""
         if isinstance(key, str):
-            key = L(key)
+            key = self._where_type()(key)
         return super().__getitem__(key)
     
     def start(self, group=0):
         """Return start position of group."""
         if isinstance(group, str):
-            group = L(group)
+            group = self._where_type()(group)
         return super().start(group)
     
     def end(self, group=0):
         """Return end position of group."""
         if isinstance(group, str):
-            group = L(group)
+            group = self._where_type()(group)
         return super().end(group)
     
     def span(self, group=0):
         """Return (start, end) tuple of group."""
         if isinstance(group, str):
-            group = L(group)
+            group = self._where_type()(group)
         return super().span(group)
     
     def expand(self, template):
@@ -255,6 +212,70 @@ class Pattern(_lstring.re.Pattern):
     Inherits from _lstring.re.Pattern to allow Python-level customization while
     maintaining C++ performance for pattern matching operations.
     """
+
+    @staticmethod
+    def _to_boost_syntax_flags(flags: int) -> int:
+        """Translate Python-like flags into Boost.Regex syntax flags.
+
+        If the caller uses any Python-like flag bits (I/M/S/X), we apply Python
+        defaults (MULTILINE off, DOTALL off) by explicitly setting Boost's
+        `no_mod_m` and `no_mod_s` unless the corresponding Python flag requests
+        otherwise.
+
+        If the caller passes only Boost flags (no Python-like bits), we pass them
+        through unchanged.
+        """
+        boost_flags = int(flags) & ~_PY_FLAG_MASK
+        using_python_flags = bool(int(flags) & _PY_FLAG_MASK)
+
+        # If the extension doesn't expose Boost flag constants, fall back to
+        # pass-through behaviour.
+        try:
+            boost_icase = int(_lstring.re.IGNORECASE)
+            boost_no_mod_m = int(_lstring.re.NO_MOD_M)
+            boost_no_mod_s = int(_lstring.re.NO_MOD_S)
+            boost_mod_s = int(_lstring.re.MOD_S)
+            boost_mod_x = int(_lstring.re.MOD_X)
+        except Exception:
+            return boost_flags
+
+        if not using_python_flags:
+            return boost_flags
+
+        # IGNORECASE
+        if int(flags) & IGNORECASE:
+            boost_flags |= boost_icase
+
+        # MULTILINE (Python default: off)
+        if int(flags) & MULTILINE:
+            boost_flags &= ~boost_no_mod_m
+        else:
+            boost_flags |= boost_no_mod_m
+
+        # DOTALL (Python default: off)
+        if int(flags) & DOTALL:
+            boost_flags &= ~boost_no_mod_s
+            boost_flags |= boost_mod_s
+        else:
+            boost_flags |= boost_no_mod_s
+            boost_flags &= ~boost_mod_s
+
+        # VERBOSE (Python default: off)
+        if int(flags) & VERBOSE:
+            boost_flags |= boost_mod_x
+
+        return boost_flags
+
+    _INLINE_FLAG_FINDER_PATTERN = r"\(\?(?<flags>[aiLmsux-]+)(?<delim>[:)])"
+    _INLINE_FLAG_FINDER = None
+
+    @classmethod
+    def _inline_flag_finder(cls):
+        finder = cls._INLINE_FLAG_FINDER
+        if finder is None:
+            finder = cls(cls._INLINE_FLAG_FINDER_PATTERN, compatible=False)
+            cls._INLINE_FLAG_FINDER = finder
+        return finder
     
     @staticmethod
     def _convert_python_to_boost(pattern):
@@ -270,6 +291,76 @@ class Pattern(_lstring.re.Pattern):
         Returns:
             lstring.L: Pattern converted to Boost regex syntax
         """
+        import warnings
+
+        # Strip unsupported inline flags embedded in the pattern.
+        # We search using Boost-backed regex (compatible=False), and keep
+        # everything as L (no full conversion to str).
+        #
+        # Python supports inline flags like (?aiLmsux) and (?aiLmsux:...).
+        # We ignore:
+        #  - a: warn
+        #  - L: warn
+        #  - u: silently
+        # while preserving other flags.
+        def _strip_unsupported_inline_flags(pat: L) -> L:
+            finder = Pattern._inline_flag_finder()
+
+            def repl(m: Match) -> L:
+                flags = m.group('flags')
+                delim = m.group('delim')
+
+                had_a = flags.findc('a', 0) != -1
+                had_L = flags.findc('L', 0) != -1
+                # 'u' is ignored silently (but removed)
+
+                if had_a:
+                    warnings.warn("Inline flag '(?a)' is ignored (ASCII mode is not supported).", RuntimeWarning, stacklevel=3)
+                if had_L:
+                    warnings.warn("Inline flag '(?L)' is ignored (locale mode is not supported).", RuntimeWarning, stacklevel=3)
+
+                dash_pos = flags.findc('-', 0)
+                if dash_pos != -1:
+                    left = flags[:dash_pos]
+                    right = flags[dash_pos + 1:]
+                    right_nonempty = len(right) > 0
+                else:
+                    left = flags
+                    right = L('')
+                    right_nonempty = False
+
+                def drop_unsupported(s: L) -> L:
+                    kept = ''.join(c for c in s if c not in ('a', 'u', 'L'))
+                    return L(kept)
+
+                left2 = drop_unsupported(left)
+                right2 = drop_unsupported(right)
+
+                if right_nonempty:
+                    if len(left2) and len(right2):
+                        rebuilt = L('').join((left2, '-', right2))
+                    elif len(left2) and not len(right2):
+                        rebuilt = left2
+                    elif not len(left2) and len(right2):
+                        rebuilt = L('').join(('-', right2))
+                    else:
+                        rebuilt = L('')
+                else:
+                    rebuilt = left2
+
+                if len(rebuilt) == 0:
+                    # Only unsupported flags left.
+                    if delim == ')':
+                        return L('')
+                    # Scoped flags group: (?a:...) -> (?:...)
+                    return L('(?:')
+
+                return L('').join(('(?', rebuilt, delim))
+
+            return finder.sub(repl, pat)
+
+        pattern = _strip_unsupported_inline_flags(pattern)
+
         def generate_parts():
             """Generator that yields parts of the converted pattern."""
             i = 0
@@ -342,7 +433,7 @@ class Pattern(_lstring.re.Pattern):
         # In native/Boost mode, leave both pattern and flags untouched.
         if compatible:
             pattern = self._convert_python_to_boost(pattern)
-            flags = _to_boost_syntax_flags(flags)
+            flags = self._to_boost_syntax_flags(flags)
         else:
             flags = int(flags)
         

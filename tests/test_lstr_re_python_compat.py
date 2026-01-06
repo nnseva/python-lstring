@@ -5,6 +5,7 @@ Tests for Python re syntax compatibility conversion.
 import unittest
 import sys
 import os
+import warnings
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -248,6 +249,42 @@ class TestConvertPythonToBoost(unittest.TestCase):
         result = lstring.re.Pattern._convert_python_to_boost(input_pattern)
         self.assertEqual(str(result), '(?<x>\\w)\\k<x>\\k<x>')
 
+    def test_inline_unsupported_flags_stripped_with_warnings(self):
+        """(?a) and (?L) are stripped with warnings; (?u) is stripped silently."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+
+            r1 = lstring.re.Pattern._convert_python_to_boost(L('(?a)abc'))
+            r2 = lstring.re.Pattern._convert_python_to_boost(L('(?L)abc'))
+            r3 = lstring.re.Pattern._convert_python_to_boost(L('(?u)abc'))
+
+        self.assertEqual(str(r1), 'abc')
+        self.assertEqual(str(r2), 'abc')
+        self.assertEqual(str(r3), 'abc')
+
+        messages = [str(w.message) for w in caught]
+        self.assertTrue(any('(?a)' in msg for msg in messages), messages)
+        self.assertTrue(any('(?L)' in msg for msg in messages), messages)
+        self.assertFalse(any('(?u)' in msg for msg in messages), messages)
+
+    def test_inline_unsupported_flags_preserve_other_flags(self):
+        """Unsupported flags are removed without dropping supported inline flags."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            result = lstring.re.Pattern._convert_python_to_boost(L('(?ai)abc'))
+
+        self.assertEqual(str(result), '(?i)abc')
+        self.assertTrue(any('(?a)' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
+    def test_inline_unsupported_scoped_group_becomes_noncapturing(self):
+        """(?a:...) with only unsupported flags becomes (?:...)."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            result = lstring.re.Pattern._convert_python_to_boost(L('(?a:ab)c'))
+
+        self.assertEqual(str(result), '(?:ab)c')
+        self.assertTrue(any('(?a)' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
 
 class TestPatternConstruction(unittest.TestCase):
     """Test that _convert_python_to_boost is called correctly during Pattern construction."""
@@ -291,6 +328,48 @@ class TestPatternConstruction(unittest.TestCase):
             # Verify the argument is L type
             call_args = mock_convert.call_args[0][0]
             self.assertIsInstance(call_args, type(L('')))
+
+
+class TestPatternConstructorInlineUnsupportedFlags(unittest.TestCase):
+    def test_constructor_inline_a_warns_and_compiles(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('(?a)abc'), compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertTrue(any('(?a)' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
+    def test_constructor_inline_L_warns_and_compiles(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('(?L)abc'), compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertTrue(any('(?L)' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
+    def test_constructor_inline_u_silent_and_compiles(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('(?u)abc'), compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertEqual([str(w.message) for w in caught], [])
+
+    def test_constructor_inline_ai_preserves_i(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('(?ai)abc'), compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('ABC')))
+        self.assertTrue(any('(?a)' in str(w.message) for w in caught), [str(w.message) for w in caught])
+
+    def test_constructor_inline_scoped_a_becomes_noncapturing(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always', RuntimeWarning)
+            pat = lstring.re.Pattern(L('(?a:ab)c'), compatible=True)
+
+        self.assertIsNotNone(pat.fullmatch(L('abc')))
+        self.assertTrue(any('(?a)' in str(w.message) for w in caught), [str(w.message) for w in caught])
 
 
 if __name__ == '__main__':

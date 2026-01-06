@@ -80,13 +80,38 @@ Match_dealloc(PyObject *self_obj) {
     Py_TYPE(self)->tp_free(self_obj);
 }
 
+// Match.where (read-only) -> subject object saved in match buffer
+static PyObject*
+Match_get_where(PyObject *self_obj, void * /*closure*/) {
+    MatchObject *self = (MatchObject*)self_obj;
+    if (!self->matchbuf) {
+        PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
+        return nullptr;
+    }
+    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    PyObject *where_obj = buf->where.ptr().get();
+    if (!where_obj) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(where_obj);
+    return where_obj;
+}
+
+static PyGetSetDef Match_getset[] = {
+    {(char*)"where", (getter)Match_get_where, nullptr, (char*)"Subject object used for this match (read-only).", nullptr},
+    {nullptr, nullptr, nullptr, nullptr, nullptr}
+};
+
 // Helper: extract single group by index or name and return as L object
 // Accepts only int (index) or lstring.L (name), no str conversion
 static PyObject*
 extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
     LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
-    
-    tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+
+    // Use the concrete Python type of the subject (usually lstring.L) so that
+    // extracted groups are created as that type rather than the base _lstring.L.
+    PyTypeObject *subject_lstr_type = Py_TYPE(buf->where.ptr().get());
+    tptr<PyTypeObject> lstr_type(subject_lstr_type, true);
     if (!lstr_type) return nullptr;
     
     // Check if argument is an integer (group index)
@@ -167,7 +192,8 @@ Match_group(PyObject *self_obj, PyObject *args) {
         Py_ssize_t start = begin_iter.distance_to(buf->results[0].first);
         Py_ssize_t end = begin_iter.distance_to(buf->results[0].second);
         
-        tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+        PyTypeObject *subject_lstr_type = Py_TYPE(buf->where.ptr().get());
+        tptr<PyTypeObject> lstr_type(subject_lstr_type, true);
         if (!lstr_type) return nullptr;
         tptr<LStrObject> result(PyType_GenericAlloc(lstr_type.get(), 0));
         if (!result) return nullptr;
@@ -215,8 +241,9 @@ Match_groups(PyObject *self_obj, PyObject *args) {
     if (!result_tuple) return nullptr;
     
     LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
-    
-    tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+
+    PyTypeObject *subject_lstr_type = Py_TYPE(buf->where.ptr().get());
+    tptr<PyTypeObject> lstr_type(subject_lstr_type, true);
     if (!lstr_type) return nullptr;
     
     for (Py_ssize_t i = 0; i < num_capturing_groups; ++i) {
@@ -495,7 +522,8 @@ static PyObject* Match_repr(PyObject *self_obj) {
         Py_ssize_t end_pos = begin_iter.distance_to(buf->results[0].second);
         
         // Get the matched string
-        tptr<PyTypeObject> lstr_type(get_string_lstr_type());
+        PyTypeObject *subject_lstr_type = Py_TYPE(buf->where.ptr().get());
+        tptr<PyTypeObject> lstr_type(subject_lstr_type, true);
         if (!lstr_type) return nullptr;
         
         tptr<LStrObject> match_lobj(PyType_GenericAlloc(lstr_type.get(), 0));
@@ -531,6 +559,7 @@ int lstring_re_register_match_type(PyObject *submodule) {
         {Py_tp_dealloc, (void*)Match_dealloc},
         {Py_tp_repr, (void*)Match_repr},
         {Py_tp_methods, (void*)Match_methods},
+        {Py_tp_getset, (void*)Match_getset},
         {Py_mp_subscript, (void*)Match_getitem},
         {0, nullptr}
     };
