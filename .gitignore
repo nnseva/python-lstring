@@ -18,3 +18,6 @@ pip-log.txt
 MANIFEST
 dist
 .vscode/.env
+
+# ICU data file is fetched from ICU tarball during build
+lstring/_icu_data/*.dat
