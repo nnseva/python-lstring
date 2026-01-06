@@ -13,9 +13,9 @@
 #include "lstring_re_regex.hxx"
 #include "lstring_utils.hxx"
 #include <cppy/cppy.h>
+#include <boost/regex/v5/regex.hpp>
 
-// TODO: determine compatible CharT type for Boost.Regex usage with lstring.L
-using CharT = wchar_t; // Placeholder; adjust as needed for target platform
+using CharT = Py_UCS4;
 
 // Use helper from lstring_utils.hxx: get_string_lstr_type()
 
@@ -310,6 +310,29 @@ int lstring_re_mod_exec(PyObject *parent_module, const char *submodule_name) {
     
     // Optionally add a convenience attribute BEFORE transferring ownership
     if (PyModule_AddStringConstant(submodule.get(), "__doc__", "Regex helpers for lstring.L") < 0) {
+        return -1;
+    }
+
+    // Export commonly-used Boost.Regex flags (syntax_option_type)
+    // so Python code can pass them into Pattern(..., flags=...).
+    if (PyModule_AddIntConstant(submodule.get(), "IGNORECASE", static_cast<long>(boost::regex_constants::icase)) < 0) {
+        return -1;
+    }
+    if (PyModule_AddIntConstant(submodule.get(), "I", static_cast<long>(boost::regex_constants::icase)) < 0) {
+        return -1;
+    }
+
+    // Additional syntax flags used by the Python wrapper to provide re-like behaviour.
+    if (PyModule_AddIntConstant(submodule.get(), "NO_MOD_M", static_cast<long>(boost::regex_constants::no_mod_m)) < 0) {
+        return -1;
+    }
+    if (PyModule_AddIntConstant(submodule.get(), "NO_MOD_S", static_cast<long>(boost::regex_constants::no_mod_s)) < 0) {
+        return -1;
+    }
+    if (PyModule_AddIntConstant(submodule.get(), "MOD_S", static_cast<long>(boost::regex_constants::mod_s)) < 0) {
+        return -1;
+    }
+    if (PyModule_AddIntConstant(submodule.get(), "MOD_X", static_cast<long>(boost::regex_constants::mod_x)) < 0) {
         return -1;
     }
     

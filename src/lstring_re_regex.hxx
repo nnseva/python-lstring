@@ -14,6 +14,7 @@
 #include <Python.h>
 #include "lstring_re_iterator.hxx"
 #include "lstring_re_pattern.hxx"
+#include "lstring_re_icu_traits.hxx"
 #include "tptr.hxx"
 #include <cppy/cppy.h>
 #include <boost/regex/v5/regex.hpp>
@@ -38,7 +39,8 @@ public:
     virtual ~LStrRegexBuffer() = default;
 
     // Store compiled regex directly
-    boost::basic_regex<CharT> re;
+    using traits_t = boost::regex_traits_wrapper<lstring_re::icu_u32_regex_traits>;
+    boost::basic_regex<CharT, traits_t> re;
 };
 
 // Lightweight holder for match results produced by Boost.Regex when matching

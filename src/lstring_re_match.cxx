@@ -7,7 +7,7 @@
 #include <cppy/cppy.h>
 
 // Use the same CharT choice as other regex components in this build.
-using CharT = wchar_t;
+using CharT = Py_UCS4;
 
 // Match.__new__(cls, pattern: Pattern, subject: L)
 static PyObject*

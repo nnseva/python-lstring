@@ -8,7 +8,7 @@
 #include <cppy/cppy.h>
 #include <boost/regex.hpp>
 
-using CharT = wchar_t; // keep consistent with module placeholder
+using CharT = Py_UCS4;
 
 // Free PatternObject
 void Pattern_dealloc(PyObject *self_obj) {

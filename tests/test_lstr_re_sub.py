@@ -168,8 +168,8 @@ class TestModuleLevelSub(unittest.TestCase):
     
     def test_sub_with_flags(self):
         """Test module-level sub() with flags."""
-        # Skip - flags not yet exported in lstring.re
-        self.skipTest("IGNORECASE flag not yet exported")
+        result = lstring.re.sub(r'foo', L('X'), L('FOO foo'), flags=lstring.re.IGNORECASE)
+        self.assertEqual(str(result), 'X X')
     
     def test_subn_module_function(self):
         """Test module-level subn() function."""
@@ -179,8 +179,9 @@ class TestModuleLevelSub(unittest.TestCase):
     
     def test_subn_with_flags(self):
         """Test module-level subn() with flags."""
-        # Skip - flags not yet exported in lstring.re
-        self.skipTest("IGNORECASE flag not yet exported")
+        result, n = lstring.re.subn(r'foo', L('X'), L('FOO foo'), flags=lstring.re.IGNORECASE)
+        self.assertEqual(str(result), 'X X')
+        self.assertEqual(n, 2)
     
     def test_sub_with_count(self):
         """Test module-level sub() with count parameter."""

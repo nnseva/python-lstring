@@ -8,7 +8,7 @@ template<typename CharT>
 class LStrRegexBuffer;
 
 // Temporary - will be redefined based on platform later
-using CharT = wchar_t;
+using CharT = Py_UCS4;
 
 // Declaration of PatternObject
 struct PatternObject {

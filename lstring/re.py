@@ -8,6 +8,75 @@ exposing Pattern and Match classes that can be extended in Python.
 import _lstring
 from lstring import L
 
+# Public flags (Python re-like).
+#
+# Note: Boost.Regex defaults differ from Python's `re` defaults for at least
+# MULTILINE and DOTALL. We provide re-like flags here and translate them into
+# Boost.Regex syntax flags when compiling patterns.
+IGNORECASE = 2
+I = IGNORECASE
+MULTILINE = 8
+M = MULTILINE
+DOTALL = 16
+S = DOTALL
+VERBOSE = 64
+X = VERBOSE
+
+_PY_FLAG_MASK = IGNORECASE | MULTILINE | DOTALL | VERBOSE
+
+
+def _to_boost_syntax_flags(flags: int) -> int:
+    """Translate Python-like flags into Boost.Regex syntax flags.
+
+    If the caller uses any Python-like flag bits (I/M/S/X), we apply Python
+    defaults (MULTILINE off, DOTALL off) by explicitly setting Boost's
+    `no_mod_m` and `no_mod_s` unless the corresponding Python flag requests
+    otherwise.
+
+    If the caller passes only Boost flags (no Python-like bits), we pass them
+    through unchanged.
+    """
+    boost_flags = int(flags) & ~_PY_FLAG_MASK
+    using_python_flags = bool(int(flags) & _PY_FLAG_MASK)
+
+    # If the extension doesn't expose Boost flag constants, fall back to
+    # pass-through behaviour.
+    try:
+        boost_icase = int(_lstring.re.IGNORECASE)
+        boost_no_mod_m = int(_lstring.re.NO_MOD_M)
+        boost_no_mod_s = int(_lstring.re.NO_MOD_S)
+        boost_mod_s = int(_lstring.re.MOD_S)
+        boost_mod_x = int(_lstring.re.MOD_X)
+    except Exception:
+        return boost_flags
+
+    if not using_python_flags:
+        return boost_flags
+
+    # IGNORECASE
+    if int(flags) & IGNORECASE:
+        boost_flags |= boost_icase
+
+    # MULTILINE (Python default: off)
+    if int(flags) & MULTILINE:
+        boost_flags &= ~boost_no_mod_m
+    else:
+        boost_flags |= boost_no_mod_m
+
+    # DOTALL (Python default: off)
+    if int(flags) & DOTALL:
+        boost_flags &= ~boost_no_mod_s
+        boost_flags |= boost_mod_s
+    else:
+        boost_flags |= boost_no_mod_s
+        boost_flags &= ~boost_mod_s
+
+    # VERBOSE (Python default: off)
+    if int(flags) & VERBOSE:
+        boost_flags |= boost_mod_x
+
+    return boost_flags
+
 
 class Match(_lstring.re.Match):
     """
@@ -268,9 +337,14 @@ class Pattern(_lstring.re.Pattern):
         if Match is None:
             Match = globals()['Match']  # Use lstring.re.Match by default
         
-        # Convert Python syntax to Boost syntax if needed
+        # In Python-compatible mode, convert both pattern syntax and Python-like
+        # flags (I/M/S/X) into the Boost.Regex equivalents.
+        # In native/Boost mode, leave both pattern and flags untouched.
         if compatible:
             pattern = self._convert_python_to_boost(pattern)
+            flags = _to_boost_syntax_flags(flags)
+        else:
+            flags = int(flags)
         
         # Call C++ __init__
         super().__init__(pattern, flags, Match)
@@ -584,4 +658,12 @@ __all__ = [
     'split',
     'sub',
     'subn',
+    'IGNORECASE',
+    'I',
+    'MULTILINE',
+    'M',
+    'DOTALL',
+    'S',
+    'VERBOSE',
+    'X',
 ]

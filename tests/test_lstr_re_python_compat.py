@@ -26,7 +26,7 @@ class TestPythonSyntaxConversion(unittest.TestCase):
         self.assertEqual(str(match.group(L('word'))), 'hello')
     
     def test_named_backref_conversion(self):
-        """Test that (?P=name) converts to \k<name>."""
+        r"""Test that (?P=name) converts to \k<name>."""
         # Pattern with named group and backreference
         pattern = lstring.re.compile(r'(?P<char>\w)\w+(?P=char)', compatible=True)
         
@@ -148,7 +148,7 @@ class TestConversionEdgeCases(unittest.TestCase):
         self.assertEqual(str(match.group()), '123')
     
     def test_literal_question_mark(self):
-        """Test that literal \? doesn't interfere with conversion."""
+        r"""Test that literal \? doesn't interfere with conversion."""
         pattern = lstring.re.compile(r'test\?', compatible=True)
         match = pattern.match(L('test?'))
         self.assertIsNotNone(match)
