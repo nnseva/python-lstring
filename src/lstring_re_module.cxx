@@ -15,8 +15,6 @@
 #include <cppy/cppy.h>
 #include <boost/regex/v5/regex.hpp>
 
-using CharT = Py_UCS4;
-
 // Use helper from lstring_utils.hxx: get_string_lstr_type()
 
 // Forward declarations/definitions for Pattern are in lstring_re_pattern.hxx/cxx

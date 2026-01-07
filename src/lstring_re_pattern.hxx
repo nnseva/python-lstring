@@ -7,13 +7,10 @@
 template<typename CharT>
 class LStrRegexBuffer;
 
-// Temporary - will be redefined based on platform later
-using CharT = Py_UCS4;
-
 // Declaration of PatternObject
 struct PatternObject {
     PyObject_HEAD
-    LStrRegexBuffer<CharT> *buf;
+    LStrRegexBuffer<Py_UCS4> *buf;
     PyObject *match_factory; // Factory (class or callable) to create Match instances
 };
 

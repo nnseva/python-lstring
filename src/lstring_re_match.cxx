@@ -6,8 +6,7 @@
 #include "tptr.hxx"
 #include <cppy/cppy.h>
 
-// Use the same CharT choice as other regex components in this build.
-using CharT = Py_UCS4;
+
 
 // Match.__new__(cls, pattern: Pattern, subject: L)
 static PyObject*
@@ -85,7 +84,7 @@ Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
     
     // Create LStrMatchBuffer
     try {
-        self->matchbuf = new LStrMatchBuffer<CharT>(pattern_obj, subject_obj, pos, endpos);
+        self->matchbuf = new LStrMatchBuffer<Py_UCS4>(pattern_obj, subject_obj, pos, endpos);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return -1;
@@ -98,7 +97,7 @@ static void
 Match_dealloc(PyObject *self_obj) {
     MatchObject *self = (MatchObject*)self_obj;
     if (self->matchbuf) {
-        auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+        auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
         delete buf;
         self->matchbuf = nullptr;
     }
@@ -113,7 +112,7 @@ Match_get_string(PyObject *self_obj, void * /*closure*/) {
         PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
         return nullptr;
     }
-    return cppy::incref(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->where.ptr().get());
+    return cppy::incref(reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf)->where.ptr().get());
 }
 
 // Match.re (read-only) -> Pattern object saved in match buffer
@@ -124,7 +123,7 @@ Match_get_re(PyObject *self_obj, void * /*closure*/) {
         PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
         return nullptr;
     }
-    return cppy::incref(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->pattern.ptr().get());
+    return cppy::incref(reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf)->pattern.ptr().get());
 }
 
 // Match.pos (read-only) -> start position used for this match
@@ -135,7 +134,7 @@ Match_get_pos(PyObject *self_obj, void * /*closure*/) {
         PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
         return nullptr;
     }
-    return PyLong_FromSsize_t(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->pos);
+    return PyLong_FromSsize_t(reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf)->pos);
 }
 
 // Match.endpos (read-only) -> end position used for this match
@@ -146,7 +145,7 @@ Match_get_endpos(PyObject *self_obj, void * /*closure*/) {
         PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
         return nullptr;
     }
-    return PyLong_FromSsize_t(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->endpos);
+    return PyLong_FromSsize_t(reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf)->endpos);
 }
 
 // Match.lastindex (read-only) -> int | None
@@ -159,7 +158,7 @@ Match_get_lastindex(PyObject *self_obj, void * /*closure*/) {
         return nullptr;
     }
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     if (buf->results.size() <= 1) {
         Py_RETURN_NONE;
     }
@@ -185,8 +184,8 @@ static PyGetSetDef Match_getset[] = {
 // Helper: extract single group by index or name and return as L object
 // Accepts only int (index) or lstring.L (name), no str conversion
 static PyObject*
-extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
-    LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
+extract_group_by_index_or_name(LStrMatchBuffer<Py_UCS4> *buf, PyObject *arg_obj) {
+    LStrIteratorBuffer<Py_UCS4> begin_iter(buf->where.get(), 0);
 
     // Use the concrete Python type of the subject (usually lstring.L) so that
     // extracted groups are created as that type rather than the base _lstring.L.
@@ -228,10 +227,10 @@ extract_group_by_index_or_name(LStrMatchBuffer<CharT> *buf, PyObject *arg_obj) {
     
     LStrObject *name_lobj = reinterpret_cast<LStrObject*>(arg_obj);
     
-    // Convert L to std::basic_string<CharT> for Boost
-    LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
-    LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
-    std::basic_string<CharT> group_name(name_begin, name_end);
+    // Convert L to std::basic_string<Py_UCS4> for Boost
+    LStrIteratorBuffer<Py_UCS4> name_begin(name_lobj, 0);
+    LStrIteratorBuffer<Py_UCS4> name_end(name_lobj, name_begin.length());
+    std::basic_string<Py_UCS4> group_name(name_begin, name_end);
     
     // Access named group via Boost's operator[]
     auto &sub = buf->results[group_name];
@@ -257,7 +256,7 @@ Match_group(PyObject *self_obj, PyObject *args) {
         return nullptr;
     }
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     Py_ssize_t num_groups = static_cast<Py_ssize_t>(buf->results.size());
 
     // If no arguments, default to group(0)
@@ -268,7 +267,7 @@ Match_group(PyObject *self_obj, PyObject *args) {
             Py_RETURN_NONE;
         }
         
-        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
+        LStrIteratorBuffer<Py_UCS4> begin_iter(buf->where.get(), 0);
         Py_ssize_t start = begin_iter.distance_to(buf->results[0].first);
         Py_ssize_t end = begin_iter.distance_to(buf->results[0].second);
         
@@ -311,7 +310,7 @@ Match_groups(PyObject *self_obj, PyObject *args) {
     PyObject *default_value = Py_None;
     if (!PyArg_ParseTuple(args, "|O", &default_value)) return nullptr;
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     Py_ssize_t num_groups = static_cast<Py_ssize_t>(buf->results.size());
     
     // groups() returns all groups except group 0 (full match)
@@ -320,7 +319,7 @@ Match_groups(PyObject *self_obj, PyObject *args) {
     cppy::ptr result_tuple(PyTuple_New(num_capturing_groups));
     if (!result_tuple) return nullptr;
     
-    LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
+    LStrIteratorBuffer<Py_UCS4> begin_iter(buf->where.get(), 0);
 
     PyTypeObject *subject_lstr_type = Py_TYPE(buf->where.ptr().get());
     tptr<PyTypeObject> lstr_type(subject_lstr_type, true);
@@ -357,7 +356,7 @@ Match_getitem(PyObject *self_obj, PyObject *key) {
         return nullptr;
     }
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     return extract_group_by_index_or_name(buf, key);
 }
 
@@ -369,7 +368,7 @@ static PyObject* Match_start(PyObject *self_obj, PyObject *args) {
         return nullptr;
     }
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     cppy::ptr group_arg;
     {
         PyObject *temp = nullptr;
@@ -379,7 +378,7 @@ static PyObject* Match_start(PyObject *self_obj, PyObject *args) {
     if (!group_arg) return nullptr;
     
     try {
-        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
+        LStrIteratorBuffer<Py_UCS4> begin_iter(buf->where.get(), 0);
         
         // Handle integer index
         if (PyLong_Check(group_arg.get())) {
@@ -411,9 +410,9 @@ static PyObject* Match_start(PyObject *self_obj, PyObject *args) {
         }
         
         LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg.get());
-        LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
-        LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
-        std::basic_string<CharT> group_name(name_begin, name_end);
+        LStrIteratorBuffer<Py_UCS4> name_begin(name_lobj, 0);
+        LStrIteratorBuffer<Py_UCS4> name_end(name_lobj, name_begin.length());
+        std::basic_string<Py_UCS4> group_name(name_begin, name_end);
         
         auto &sub = buf->results[group_name];
         if (!sub.matched) {
@@ -436,7 +435,7 @@ static PyObject* Match_end(PyObject *self_obj, PyObject *args) {
         return nullptr;
     }
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     cppy::ptr group_arg;
     {
         PyObject *temp = nullptr;
@@ -446,7 +445,7 @@ static PyObject* Match_end(PyObject *self_obj, PyObject *args) {
     if (!group_arg) return nullptr;
     
     try {
-        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
+        LStrIteratorBuffer<Py_UCS4> begin_iter(buf->where.get(), 0);
         
         // Handle integer index
         if (PyLong_Check(group_arg.get())) {
@@ -478,9 +477,9 @@ static PyObject* Match_end(PyObject *self_obj, PyObject *args) {
         }
         
         LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg.get());
-        LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
-        LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
-        std::basic_string<CharT> group_name(name_begin, name_end);
+        LStrIteratorBuffer<Py_UCS4> name_begin(name_lobj, 0);
+        LStrIteratorBuffer<Py_UCS4> name_end(name_lobj, name_begin.length());
+        std::basic_string<Py_UCS4> group_name(name_begin, name_end);
         
         auto &sub = buf->results[group_name];
         if (!sub.matched) {
@@ -503,7 +502,7 @@ static PyObject* Match_span(PyObject *self_obj, PyObject *args) {
         return nullptr;
     }
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     cppy::ptr group_arg;
     {
         PyObject *temp = nullptr;
@@ -513,7 +512,7 @@ static PyObject* Match_span(PyObject *self_obj, PyObject *args) {
     if (!group_arg) return nullptr;
     
     try {
-        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
+        LStrIteratorBuffer<Py_UCS4> begin_iter(buf->where.get(), 0);
         
         // Handle integer index
         if (PyLong_Check(group_arg.get())) {
@@ -555,9 +554,9 @@ static PyObject* Match_span(PyObject *self_obj, PyObject *args) {
         }
         
         LStrObject *name_lobj = reinterpret_cast<LStrObject*>(group_arg.get());
-        LStrIteratorBuffer<CharT> name_begin(name_lobj, 0);
-        LStrIteratorBuffer<CharT> name_end(name_lobj, name_begin.length());
-        std::basic_string<CharT> group_name(name_begin, name_end);
+        LStrIteratorBuffer<Py_UCS4> name_begin(name_lobj, 0);
+        LStrIteratorBuffer<Py_UCS4> name_end(name_lobj, name_begin.length());
+        std::basic_string<Py_UCS4> group_name(name_begin, name_end);
         
         auto &sub = buf->results[group_name];
         if (!sub.matched) {
@@ -589,7 +588,7 @@ static PyObject* Match_repr(PyObject *self_obj) {
         return PyUnicode_FromString("<_lstring.re.Match object; not initialized>");
     }
 
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    auto *buf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(self->matchbuf);
     
     try {
         // Get span (start, end) of the full match (group 0)
@@ -597,7 +596,7 @@ static PyObject* Match_repr(PyObject *self_obj) {
             return PyUnicode_FromString("<_lstring.re.Match object; no match>");
         }
 
-        LStrIteratorBuffer<CharT> begin_iter(buf->where.get(), 0);
+        LStrIteratorBuffer<Py_UCS4> begin_iter(buf->where.get(), 0);
         Py_ssize_t start_pos = begin_iter.distance_to(buf->results[0].first);
         Py_ssize_t end_pos = begin_iter.distance_to(buf->results[0].second);
         

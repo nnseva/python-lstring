@@ -8,8 +8,6 @@
 #include <cppy/cppy.h>
 #include <boost/regex.hpp>
 
-using CharT = Py_UCS4;
-
 // Free PatternObject
 void Pattern_dealloc(PyObject *self_obj) {
     PatternObject *self = (PatternObject*)self_obj;
@@ -54,7 +52,7 @@ int Pattern_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
     // Create regex buffer
     try {
         LStrObject *pat = reinterpret_cast<LStrObject*>(pattern_arg);
-        self->buf = new LStrRegexBuffer<CharT>(pat, flags);
+        self->buf = new LStrRegexBuffer<Py_UCS4>(pat, flags);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return -1;
@@ -154,13 +152,13 @@ static PyObject* Pattern_match(PyObject *self_obj, PyObject *args) {
     tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get(), pos, endpos);
     if (!match_owner) return nullptr;
     
-    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(match_owner->matchbuf);
 
     bool found = false;
     try {
         LStrObject *lobj = subject_owner.get();
-        LStrIteratorBuffer<CharT> begin(lobj, pos);
-        LStrIteratorBuffer<CharT> end(lobj, endpos);
+        LStrIteratorBuffer<Py_UCS4> begin(lobj, pos);
+        LStrIteratorBuffer<Py_UCS4> end(lobj, endpos);
         boost::smatch results;
         found = boost::regex_search(begin, end, matchbuf->results, self->buf->re, boost::match_continuous);
     } catch (const std::exception &e) {
@@ -190,13 +188,13 @@ static PyObject* Pattern_search(PyObject *self_obj, PyObject *args) {
     tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get(), pos, endpos);
     if (!match_owner) return nullptr;
     
-    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(match_owner->matchbuf);
 
     bool found = false;
     try {
         LStrObject *lobj = subject_owner.get();
-        LStrIteratorBuffer<CharT> begin(lobj, pos);
-        LStrIteratorBuffer<CharT> end(lobj, endpos);
+        LStrIteratorBuffer<Py_UCS4> begin(lobj, pos);
+        LStrIteratorBuffer<Py_UCS4> end(lobj, endpos);
         found = boost::regex_search(begin, end, matchbuf->results, self->buf->re);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
@@ -225,13 +223,13 @@ static PyObject* Pattern_fullmatch(PyObject *self_obj, PyObject *args) {
     tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get(), pos, endpos);
     if (!match_owner) return nullptr;
     
-    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
+    auto *matchbuf = reinterpret_cast<LStrMatchBuffer<Py_UCS4>*>(match_owner->matchbuf);
 
     bool found = false;
     try {
         LStrObject *lobj = subject_owner.get();
-        LStrIteratorBuffer<CharT> begin(lobj, pos);
-        LStrIteratorBuffer<CharT> end(lobj, endpos);
+        LStrIteratorBuffer<Py_UCS4> begin(lobj, pos);
+        LStrIteratorBuffer<Py_UCS4> end(lobj, endpos);
         found = boost::regex_match(begin, end, matchbuf->results, self->buf->re);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
