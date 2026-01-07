@@ -27,11 +27,13 @@ Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
     MatchObject *self = (MatchObject*)self_obj;
     PyObject *pattern_obj = nullptr;
     PyObject *subject_obj = nullptr;
+    PyObject *pos_obj = nullptr;
+    PyObject *endpos_obj = nullptr;
     Py_ssize_t pos = 0;
-    Py_ssize_t endpos = -1;
+    Py_ssize_t endpos = 0;
     static char *kwlist[] = {(char*)"pattern", (char*)"subject", (char*)"pos", (char*)"endpos", nullptr};
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|nn", kwlist, &pattern_obj, &subject_obj, &pos, &endpos)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|OO", kwlist, &pattern_obj, &subject_obj, &pos_obj, &endpos_obj)) {
         return -1;
     }
     
@@ -60,18 +62,21 @@ Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
         return -1;
     }
 
-    if (pos < 0) {
-        PyErr_SetString(PyExc_ValueError, "pos must be non-negative");
-        return -1;
+    Py_ssize_t subject_len = reinterpret_cast<LStrObject*>(subject_obj)->buffer->length();
+
+    // Parse pos/endpos. CPython clamps negatives to 0.
+    pos = 0;
+    if (pos_obj && pos_obj != Py_None) {
+        pos = PyLong_AsSsize_t(pos_obj);
+        if (pos == -1 && PyErr_Occurred()) return -1;
+        if (pos < 0) pos = 0;
     }
 
-    Py_ssize_t subject_len = reinterpret_cast<LStrObject*>(subject_obj)->buffer->length();
-    if (endpos < 0) {
-        endpos = subject_len;
-    }
-    if (endpos < 0) {
-        PyErr_SetString(PyExc_ValueError, "endpos must be non-negative");
-        return -1;
+    endpos = subject_len;
+    if (endpos_obj && endpos_obj != Py_None) {
+        endpos = PyLong_AsSsize_t(endpos_obj);
+        if (endpos == -1 && PyErr_Occurred()) return -1;
+        if (endpos < 0) endpos = 0;
     }
 
     if (pos > subject_len) pos = subject_len;

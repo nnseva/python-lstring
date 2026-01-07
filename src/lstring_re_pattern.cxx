@@ -104,27 +104,21 @@ static tptr<LStrObject> parse_subject_argument(PyObject *args, Py_ssize_t &pos, 
     }
     tptr<LStrObject> subject_owner(subject, true); // take new ref
 
-    // Parse pos parameter (default: 0)
+    // Parse pos parameter (default: 0). CPython clamps negatives to 0.
     pos = 0;
     if (pos_obj && pos_obj != Py_None) {
         pos = PyLong_AsSsize_t(pos_obj);
         if (pos == -1 && PyErr_Occurred()) return tptr<LStrObject>();
-        if (pos < 0) {
-            PyErr_SetString(PyExc_ValueError, "pos must be non-negative");
-            return tptr<LStrObject>();
-        }
+        if (pos < 0) pos = 0;
     }
 
-    // Parse endpos parameter (default: length of subject)
+    // Parse endpos parameter (default: length of subject). CPython clamps negatives to 0.
     Py_ssize_t subject_len = subject_owner->buffer->length();
     endpos = subject_len;
     if (endpos_obj && endpos_obj != Py_None) {
         endpos = PyLong_AsSsize_t(endpos_obj);
         if (endpos == -1 && PyErr_Occurred()) return tptr<LStrObject>();
-        if (endpos < 0) {
-            PyErr_SetString(PyExc_ValueError, "endpos must be non-negative");
-            return tptr<LStrObject>();
-        }
+        if (endpos < 0) endpos = 0;
     }
 
     // Clamp pos and endpos to valid range

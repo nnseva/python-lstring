@@ -93,6 +93,20 @@ class TestMatchReturnType(unittest.TestCase):
         self.assertEqual(m2.pos, 3)
         self.assertEqual(m2.endpos, len('zzzabc'))
 
+    def test_negative_pos_endpos_clamping(self):
+        # CPython `re` clamps negative pos/endpos to 0.
+        p = lre.compile('a')
+        s = L('ba')
+
+        m = p.search(s, -1)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.pos, 0)
+        self.assertEqual(m.endpos, len(s))
+        self.assertEqual(m.span(), (1, 2))
+
+        # endpos < 0 clamps to 0, making the effective search range empty
+        self.assertIsNone(p.search(s, 0, -1))
+
     def test_string_attribute_L_identity(self):
         subject = self.subject_L
         m = self.pattern.match(subject)
