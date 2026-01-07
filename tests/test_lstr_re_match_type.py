@@ -118,28 +118,34 @@ class TestMatchReturnType(unittest.TestCase):
         m = p.search('ba')
         self.assertIsNotNone(m)
         self.assertIsNone(m.lastindex)
-        # self.assertIsNone(m.lastgroup)
+        self.assertIsNone(m.lastgroup)
 
     def test_lastindex_lastgroup_unnamed_groups(self):
         p = lre.compile('(a)(b)')
         m = p.search('ab')
         self.assertIsNotNone(m)
         self.assertEqual(m.lastindex, 2)
-        # self.assertIsNone(m.lastgroup)
+        self.assertIsNone(m.lastgroup)
 
     def test_lastindex_lastgroup_named_groups(self):
         p = lre.compile(r'(?P<x>a)(?P<y>b)')
         m = p.search('ab')
         self.assertIsNotNone(m)
         self.assertEqual(m.lastindex, 2)
-        # self.assertEqual(m.lastgroup, 'y')
+        self.assertEqual(m.lastgroup, 'y')
 
     def test_lastindex_lastgroup_optional_group_unmatched(self):
         p = lre.compile(r'(?P<x>a)?b')
         m = p.search('b')
         self.assertIsNotNone(m)
         self.assertIsNone(m.lastindex)
-        # self.assertIsNone(m.lastgroup)
+        self.assertIsNone(m.lastgroup)
+
+    def test_pattern_pattern_type_and_named_group_index(self):
+        p = lre.compile(r'(?P<x>a)(b)(?P<y>c)')
+        self.assertIsInstance(p.pattern, L)
+        # group 1: x, group 2: unnamed, group 3: y
+        self.assertEqual(p.named_group_index, (None, 'x', None, 'y'))
 
     def test_string_attribute_L_identity(self):
         subject = self.subject_L

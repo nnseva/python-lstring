@@ -110,6 +110,26 @@ class Match(_lstring.re.Match):
             return type(self.string)
         except Exception:
             return L
+
+    @property
+    def lastgroup(self):
+        """Name of the last matched capturing group, or None.
+
+        Computed in Python using Match.lastindex (C++ getter) and the
+        Pattern's cached named-group index.
+        """
+        lastindex = self.lastindex
+        if lastindex is None:
+            return None
+
+        try:
+            index = self.re.named_group_index
+        except Exception:
+            return None
+
+        if lastindex < len(index):
+            return index[lastindex]
+        return None
     
     def group(self, *args):
         """Return one or more subgroups of the match."""
@@ -322,6 +342,11 @@ class Pattern(_lstring.re.Pattern):
     _INLINE_FLAG_FINDER_PATTERN = r"\(\?(?<flags>[aiLmsux-]+)(?<delim>[:)])"
     _INLINE_FLAG_FINDER = None
 
+    # Note: In Boost.Regex, `\<` and `\>` are word-boundary tokens, not literal
+    # angle brackets. We therefore keep `<`/`>` unescaped here.
+    _NAMED_GROUP_FINDER_PATTERN = r"\(\?<(?![=!])(?<name>[A-Za-z_][A-Za-z0-9_]*)>"
+    _NAMED_GROUP_FINDER = None
+
     @classmethod
     def _inline_flag_finder(cls):
         finder = cls._INLINE_FLAG_FINDER
@@ -329,6 +354,93 @@ class Pattern(_lstring.re.Pattern):
             finder = cls(cls._INLINE_FLAG_FINDER_PATTERN, compatible=False)
             cls._INLINE_FLAG_FINDER = finder
         return finder
+
+    @classmethod
+    def _named_group_finder(cls):
+        finder = cls._NAMED_GROUP_FINDER
+        if finder is None:
+            finder = cls(cls._NAMED_GROUP_FINDER_PATTERN, compatible=False)
+            cls._NAMED_GROUP_FINDER = finder
+        return finder
+
+    @property
+    def pattern(self):
+        """The compiled pattern as an lstring.L.
+
+        In Python-compatible mode this is the post-conversion pattern (Boost
+        syntax) that was actually compiled.
+        """
+        return self._pattern
+
+    @property
+    def named_group_index(self):
+        """Tuple mapping group index -> group name (or None).
+
+        Lazily computed once and then cached on the Pattern instance.
+        Index 0 corresponds to the whole match and is always None.
+        """
+        cached = getattr(self, '_named_group_index', None)
+        if cached is not None:
+            return cached
+
+        # We intentionally keep this parser simple: it skips escaped chars and
+        # character classes, and counts only plain capturing groups "(...)" and
+        # named capturing groups "(?<name>...)".
+        #
+        # Important: named-group detection and name extraction is done via
+        # Pattern's own regex finder (Boost-backed), not via manual substring
+        # checks.
+        finder = self._named_group_finder()
+
+        index_to_name = [None]  # group 0
+        group_count = 0
+
+        escaped = False
+        in_class = False
+        i = 0
+        n = len(self._pattern)
+        while i < n:
+            ch = self._pattern[i]
+
+            if escaped:
+                escaped = False
+                i += 1
+                continue
+
+            if ch == '\\':
+                escaped = True
+                i += 1
+                continue
+
+            if ch == '[' and not in_class:
+                in_class = True
+                i += 1
+                continue
+
+            if ch == ']' and in_class:
+                in_class = False
+                i += 1
+                continue
+
+            if ch == '(' and not in_class:
+                # Named capturing group: (?<name>...)
+                m = finder.match(self._pattern, i)
+                if m is not None:
+                    group_count += 1
+                    index_to_name.append(m.group('name'))
+                else:
+                    # Plain capturing group: (...)
+                    next1 = self._pattern[i + 1] if i + 1 < n else ''
+                    if next1 != '?':
+                        group_count += 1
+                        index_to_name.append(None)
+                    # Otherwise treat "(?...)" as non-capturing (?:, ?=, ?!, ?<=, ?<!, etc.)
+
+            i += 1
+
+        cached = tuple(index_to_name)
+        self._named_group_index = cached
+        return cached
     
     @staticmethod
     def _convert_python_to_boost(pattern):
@@ -489,6 +601,10 @@ class Pattern(_lstring.re.Pattern):
             flags = self._to_boost_syntax_flags(flags)
         else:
             flags = int(flags)
+
+        # Store the exact L pattern that will be compiled.
+        self._pattern = pattern
+        self._named_group_index = None
         
         # Call C++ __init__
         super().__init__(pattern, flags, Match)
