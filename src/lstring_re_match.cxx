@@ -27,9 +27,11 @@ Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
     MatchObject *self = (MatchObject*)self_obj;
     PyObject *pattern_obj = nullptr;
     PyObject *subject_obj = nullptr;
-    static char *kwlist[] = {(char*)"pattern", (char*)"subject", nullptr};
+    Py_ssize_t pos = 0;
+    Py_ssize_t endpos = -1;
+    static char *kwlist[] = {(char*)"pattern", (char*)"subject", (char*)"pos", (char*)"endpos", nullptr};
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", kwlist, &pattern_obj, &subject_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|nn", kwlist, &pattern_obj, &subject_obj, &pos, &endpos)) {
         return -1;
     }
     
@@ -57,10 +59,28 @@ Match_init(PyObject *self_obj, PyObject *args, PyObject *kwds) {
         PyErr_SetString(PyExc_TypeError, "subject must be lstring.L");
         return -1;
     }
+
+    if (pos < 0) {
+        PyErr_SetString(PyExc_ValueError, "pos must be non-negative");
+        return -1;
+    }
+
+    Py_ssize_t subject_len = reinterpret_cast<LStrObject*>(subject_obj)->buffer->length();
+    if (endpos < 0) {
+        endpos = subject_len;
+    }
+    if (endpos < 0) {
+        PyErr_SetString(PyExc_ValueError, "endpos must be non-negative");
+        return -1;
+    }
+
+    if (pos > subject_len) pos = subject_len;
+    if (endpos > subject_len) endpos = subject_len;
+    if (endpos < pos) endpos = pos;
     
     // Create LStrMatchBuffer
     try {
-        self->matchbuf = new LStrMatchBuffer<CharT>(pattern_obj, subject_obj);
+        self->matchbuf = new LStrMatchBuffer<CharT>(pattern_obj, subject_obj, pos, endpos);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return -1;
@@ -80,25 +100,55 @@ Match_dealloc(PyObject *self_obj) {
     Py_TYPE(self)->tp_free(self_obj);
 }
 
-// Match.where (read-only) -> subject object saved in match buffer
+// Match.string (read-only) -> subject object saved in match buffer
 static PyObject*
-Match_get_where(PyObject *self_obj, void * /*closure*/) {
+Match_get_string(PyObject *self_obj, void * /*closure*/) {
     MatchObject *self = (MatchObject*)self_obj;
     if (!self->matchbuf) {
         PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
         return nullptr;
     }
-    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
-    PyObject *where_obj = buf->where.ptr().get();
-    if (!where_obj) {
-        Py_RETURN_NONE;
+    return cppy::incref(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->where.ptr().get());
+}
+
+// Match.re (read-only) -> Pattern object saved in match buffer
+static PyObject*
+Match_get_re(PyObject *self_obj, void * /*closure*/) {
+    MatchObject *self = (MatchObject*)self_obj;
+    if (!self->matchbuf) {
+        PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
+        return nullptr;
     }
-    Py_INCREF(where_obj);
-    return where_obj;
+    return cppy::incref(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->pattern.ptr().get());
+}
+
+// Match.pos (read-only) -> start position used for this match
+static PyObject*
+Match_get_pos(PyObject *self_obj, void * /*closure*/) {
+    MatchObject *self = (MatchObject*)self_obj;
+    if (!self->matchbuf) {
+        PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
+        return nullptr;
+    }
+    return PyLong_FromSsize_t(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->pos);
+}
+
+// Match.endpos (read-only) -> end position used for this match
+static PyObject*
+Match_get_endpos(PyObject *self_obj, void * /*closure*/) {
+    MatchObject *self = (MatchObject*)self_obj;
+    if (!self->matchbuf) {
+        PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
+        return nullptr;
+    }
+    return PyLong_FromSsize_t(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->endpos);
 }
 
 static PyGetSetDef Match_getset[] = {
-    {(char*)"where", (getter)Match_get_where, nullptr, (char*)"Subject object used for this match (read-only).", nullptr},
+    {(char*)"string", (getter)Match_get_string, nullptr, (char*)"Subject object used for this match (read-only).", nullptr},
+    {(char*)"re", (getter)Match_get_re, nullptr, (char*)"Pattern object used for this match (read-only).", nullptr},
+    {(char*)"pos", (getter)Match_get_pos, nullptr, (char*)"Start position passed to the pattern method (read-only).", nullptr},
+    {(char*)"endpos", (getter)Match_get_endpos, nullptr, (char*)"End position passed to the pattern method (read-only).", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 

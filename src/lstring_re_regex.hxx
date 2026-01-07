@@ -55,8 +55,8 @@ public:
     // and the `lstring.L` (`where`) where the match was performed. Both
     // `cppy::ptr` wrappers are created with `owned=true` to take a new
     // reference.
-    explicit LStrMatchBuffer(PyObject *pattern, PyObject *where)
-        : pattern(pattern, true), where(where, true), results()
+    explicit LStrMatchBuffer(PyObject *pattern, PyObject *where, Py_ssize_t pos, Py_ssize_t endpos)
+        : pattern(pattern, true), where(where, true), pos(pos), endpos(endpos), results()
     {}
 
     virtual ~LStrMatchBuffer() = default;
@@ -65,6 +65,10 @@ public:
     tptr<PatternObject> pattern;
     // Reference to the subject `lstring.L` object where the search was run.
     tptr<LStrObject> where;
+    // The start position used for this match.
+    Py_ssize_t pos;
+    // The end position used for this match.
+    Py_ssize_t endpos;
     // Actual Boost.Regex match results. Holds iterators into the subject.
     boost::match_results<LStrIteratorBuffer<CharT>> results;
 };

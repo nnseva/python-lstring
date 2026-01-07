@@ -83,34 +83,38 @@ class Match(_lstring.re.Match):
             )
         return cls._ESCAPE_REGEX
 
-    def __init__(self, pattern, subject):
+    def __init__(self, pattern, subject, pos=0, endpos=None):
         """
         Initialize a Match instance.
         
         Args:
             pattern: Pattern object
             subject: Subject string (str or lstring.L)
+            pos: Start position used for matching
+            endpos: End position used for matching (defaults to len(subject))
         """
         # Convert str to lstring.L if needed
         if isinstance(subject, str):
             subject = L(subject)
+        if endpos is None:
+            endpos = len(subject)
         # Call C++ __init__
-        super().__init__(pattern, subject)
+        super().__init__(pattern, subject, pos, endpos)
 
-    def _where_type(self):
+    def _string_type(self):
         """Return the concrete runtime type of the underlying subject.
 
-        Uses Match.where (C++ getter). Falls back to L if unavailable.
+        Uses Match.string (C++ getter). Falls back to L if unavailable.
         """
         try:
-            return type(self.where)
+            return type(self.string)
         except Exception:
             return L
     
     def group(self, *args):
         """Return one or more subgroups of the match."""
         # Convert str arguments to the runtime type of match subject.
-        subject_type = self._where_type()
+        subject_type = self._string_type()
         converted_args = []
         for arg in args:
             if isinstance(arg, str):
@@ -122,25 +126,25 @@ class Match(_lstring.re.Match):
     def __getitem__(self, key):
         """Return subgroup by index or name."""
         if isinstance(key, str):
-            key = self._where_type()(key)
+            key = self._string_type()(key)
         return super().__getitem__(key)
     
     def start(self, group=0):
         """Return start position of group."""
         if isinstance(group, str):
-            group = self._where_type()(group)
+            group = self._string_type()(group)
         return super().start(group)
     
     def end(self, group=0):
         """Return end position of group."""
         if isinstance(group, str):
-            group = self._where_type()(group)
+            group = self._string_type()(group)
         return super().end(group)
     
     def span(self, group=0):
         """Return (start, end) tuple of group."""
         if isinstance(group, str):
-            group = self._where_type()(group)
+            group = self._string_type()(group)
         return super().span(group)
     
     def expand(self, template):

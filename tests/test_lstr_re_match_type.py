@@ -70,34 +70,67 @@ class TestMatchReturnType(unittest.TestCase):
             self.assertEqual(len(m.span()), 2)
             self.assertTrue(all(isinstance(x, int) for x in m.span()))
 
-    def test_where_attribute_L_identity(self):
+    def test_pos_endpos_attributes_and_readonly(self):
+        subject = L('zzabczz')
+        m = self.pattern.search(subject, 2, 5)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.pos, 2)
+        self.assertEqual(m.endpos, 5)
+        with self.assertRaises(AttributeError):
+            m.pos = 0
+        with self.assertRaises(AttributeError):
+            m.endpos = 0
+
+    def test_pos_endpos_defaults(self):
+        subject = self.subject_L
+        m = self.pattern.search(subject)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.pos, 0)
+        self.assertEqual(m.endpos, len(subject))
+
+        m2 = self.pattern.search('zzzabc', 3)
+        self.assertIsNotNone(m2)
+        self.assertEqual(m2.pos, 3)
+        self.assertEqual(m2.endpos, len('zzzabc'))
+
+    def test_string_attribute_L_identity(self):
         subject = self.subject_L
         m = self.pattern.match(subject)
         self.assertIsNotNone(m)
-        self.assertTrue(hasattr(m, 'where'))
-        self.assertIs(m.where, subject)
-        self.assertIs(type(m.where), type(subject))
+        self.assertTrue(hasattr(m, 'string'))
+        self.assertIs(m.string, subject)
+        self.assertIs(type(m.string), type(subject))
 
         with self.assertRaises(AttributeError):
-            m.where = subject
+            m.string = subject
 
-    def test_where_attribute_subclass_identity(self):
+    def test_string_attribute_subclass_identity(self):
         class MyL(L):
             pass
 
         subject = MyL('abc')
         m = self.pattern.match(subject)
         self.assertIsNotNone(m)
-        self.assertIs(m.where, subject)
-        self.assertIs(type(m.where), type(subject))
+        self.assertIs(m.string, subject)
+        self.assertIs(type(m.string), type(subject))
 
-    def test_where_attribute_str_subject_converted(self):
+    def test_string_attribute_str_subject_converted(self):
         m = self.pattern.match(self.subject_str)
         self.assertIsNotNone(m)
-        # str subject is converted to L in Python wrapper, so m.where is an L instance
-        self.assertIsInstance(m.where, L)
-        self.assertIs(type(m.where), type(self.subject_L))
-        self.assertEqual(str(m.where), self.subject_str)
+        # str subject is converted to L in Python wrapper, so m.string is an L instance
+        self.assertIsInstance(m.string, L)
+        self.assertIs(type(m.string), type(self.subject_L))
+        self.assertEqual(str(m.string), self.subject_str)
+
+    def test_re_attribute_identity_and_readonly(self):
+        m = self.pattern.match(self.subject_L)
+        self.assertIsNotNone(m)
+
+        self.assertTrue(hasattr(m, 're'))
+        self.assertIs(m.re, self.pattern)
+
+        with self.assertRaises(AttributeError):
+            m.re = self.pattern
 
 if __name__ == '__main__':
     unittest.main()

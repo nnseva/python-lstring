@@ -137,8 +137,8 @@ static tptr<LStrObject> parse_subject_argument(PyObject *args, Py_ssize_t &pos, 
 
 // Create a new Match instance using the provided factory with pattern and subject.
 // Returns tptr<MatchObject> with the new Match instance, or empty tptr on failure.
-tptr<MatchObject> lstring_re_create_match(PyObject *match_factory, PyObject *pattern, PyObject *subject) {
-    cppy::ptr args(Py_BuildValue("(OO)", pattern, subject));
+tptr<MatchObject> lstring_re_create_match(PyObject *match_factory, PyObject *pattern, PyObject *subject, Py_ssize_t pos, Py_ssize_t endpos) {
+    cppy::ptr args(Py_BuildValue("(OOnn)", pattern, subject, pos, endpos));
     if (!args) return tptr<MatchObject>();
     
     return PyObject_CallObject(match_factory, args.get());
@@ -157,7 +157,7 @@ static PyObject* Pattern_match(PyObject *self_obj, PyObject *args) {
     tptr<LStrObject> subject_owner = parse_subject_argument(args, pos, endpos);
     if (!subject_owner) return nullptr;
 
-    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get());
+    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get(), pos, endpos);
     if (!match_owner) return nullptr;
     
     auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
@@ -192,7 +192,7 @@ static PyObject* Pattern_search(PyObject *self_obj, PyObject *args) {
     tptr<LStrObject> subject_owner = parse_subject_argument(args, pos, endpos);
     if (!subject_owner) return nullptr;
 
-    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get());
+    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get(), pos, endpos);
     if (!match_owner) return nullptr;
     
     auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
@@ -227,7 +227,7 @@ static PyObject* Pattern_fullmatch(PyObject *self_obj, PyObject *args) {
     tptr<LStrObject> subject_owner = parse_subject_argument(args, pos, endpos);
     if (!subject_owner) return nullptr;
 
-    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get());
+    tptr<MatchObject> match_owner = lstring_re_create_match(self->match_factory, self_obj, subject_owner.ptr().get(), pos, endpos);
     if (!match_owner) return nullptr;
     
     auto *matchbuf = reinterpret_cast<LStrMatchBuffer<CharT>*>(match_owner->matchbuf);
