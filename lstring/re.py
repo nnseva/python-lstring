@@ -347,6 +347,14 @@ class Pattern(_lstring.re.Pattern):
     _NAMED_GROUP_FINDER_PATTERN = r"\(\?<(?![=!])(?<name>[A-Za-z_][A-Za-z0-9_]*)>"
     _NAMED_GROUP_FINDER = None
 
+    _GROUP_TOKEN_FINDER_PATTERN = (
+        r"(?<escaped>\\.)"
+        r"|(?<charrange>\[[^\[]*\])"
+        r"|(?<charclass>\[\[.*\]\])"
+        r"|(?<grp>\((?:(?<named>\?<(?<name>[^=!#][^>]*)>)|(?<nocapture>\?[<=:!])|(?<capture>)))"
+    )
+    _GROUP_TOKEN_FINDER = None
+
     @classmethod
     def _inline_flag_finder(cls):
         finder = cls._INLINE_FLAG_FINDER
@@ -361,6 +369,14 @@ class Pattern(_lstring.re.Pattern):
         if finder is None:
             finder = cls(cls._NAMED_GROUP_FINDER_PATTERN, compatible=False)
             cls._NAMED_GROUP_FINDER = finder
+        return finder
+
+    @classmethod
+    def _group_token_finder(cls):
+        finder = cls._GROUP_TOKEN_FINDER
+        if finder is None:
+            finder = cls(cls._GROUP_TOKEN_FINDER_PATTERN, compatible=False)
+            cls._GROUP_TOKEN_FINDER = finder
         return finder
 
     @property
@@ -383,60 +399,31 @@ class Pattern(_lstring.re.Pattern):
         if cached is not None:
             return cached
 
-        # We intentionally keep this parser simple: it skips escaped chars and
-        # character classes, and counts only plain capturing groups "(...)" and
-        # named capturing groups "(?<name>...)".
-        #
-        # Important: named-group detection and name extraction is done via
-        # Pattern's own regex finder (Boost-backed), not via manual substring
-        # checks.
-        finder = self._named_group_finder()
+        # Tokenize the pattern using a Boost-backed regex and derive capturing
+        # group indices from the sequence of found openers.
+        pattern_L = self._pattern
+        finder = self._group_token_finder()
 
         index_to_name = [None]  # group 0
-        group_count = 0
+        pos = 0
+        plen = len(pattern_L)
+        while pos < plen:
+            m = finder.search(pattern_L, pos)
+            if m is None:
+                break
 
-        escaped = False
-        in_class = False
-        i = 0
-        n = len(self._pattern)
-        while i < n:
-            ch = self._pattern[i]
+            # Advance position first to avoid accidental infinite loops.
+            next_pos = m.end()
+            if next_pos <= pos:
+                next_pos = pos + 1
 
-            if escaped:
-                escaped = False
-                i += 1
-                continue
-
-            if ch == '\\':
-                escaped = True
-                i += 1
-                continue
-
-            if ch == '[' and not in_class:
-                in_class = True
-                i += 1
-                continue
-
-            if ch == ']' and in_class:
-                in_class = False
-                i += 1
-                continue
-
-            if ch == '(' and not in_class:
-                # Named capturing group: (?<name>...)
-                m = finder.match(self._pattern, i)
-                if m is not None:
-                    group_count += 1
+            if m.group('grp') is not None:
+                if m.group('name') is not None:
                     index_to_name.append(m.group('name'))
-                else:
-                    # Plain capturing group: (...)
-                    next1 = self._pattern[i + 1] if i + 1 < n else ''
-                    if next1 != '?':
-                        group_count += 1
-                        index_to_name.append(None)
-                    # Otherwise treat "(?...)" as non-capturing (?:, ?=, ?!, ?<=, ?<!, etc.)
+                elif m.group('capture') is not None:
+                    index_to_name.append(None)
 
-            i += 1
+            pos = next_pos
 
         cached = tuple(index_to_name)
         self._named_group_index = cached

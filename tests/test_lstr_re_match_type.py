@@ -147,6 +147,18 @@ class TestMatchReturnType(unittest.TestCase):
         # group 1: x, group 2: unnamed, group 3: y
         self.assertEqual(p.named_group_index, (None, 'x', None, 'y'))
 
+    def test_named_group_index_ignores_char_range(self):
+        # Character ranges should be ignored by the group-token scanner.
+        # In particular, '(' inside [...] must not be treated as a group opener.
+        p = lre.compile(r'[(](?P<x>a)(b)')
+        self.assertEqual(p.named_group_index, (None, 'x', None))
+
+    def test_named_group_index_ignores_char_class(self):
+        # POSIX-style character classes have the form [[:alpha:]] etc.
+        # They begin with "[[" and must be ignored by the group-token scanner.
+        p = lre.compile(r'[[:alpha:]](?P<x>a)(b)')
+        self.assertEqual(p.named_group_index, (None, 'x', None))
+
     def test_string_attribute_L_identity(self):
         subject = self.subject_L
         m = self.pattern.match(subject)
