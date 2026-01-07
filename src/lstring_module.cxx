@@ -9,13 +9,6 @@
 
 #include <cppy/ptr.h>
 
-#ifdef LSTRING_RE_USE_PYTHON_TRAITS
-#else
-    // ICU includes
-    #include <unicode/uclean.h>
-    #include <unicode/putil.h>
-#endif
-
 #include "lstring.hxx"
 #include "lstring_re.hxx"
 
@@ -88,80 +81,8 @@ static void lstring_free(void *module) {
     lstring_clear((PyObject*)module);
 }
 
-#ifdef LSTRING_RE_USE_PYTHON_TRAITS
-#else
-// Initialize ICU data directory
-static int lstring_init_icu_data_dir() {
-    // If user already provided ICU_DATA, respect it.
-    const char* env_icu_data = std::getenv("ICU_DATA");
-    if (env_icu_data && env_icu_data[0]) {
-        u_setDataDirectory(env_icu_data);
-        UErrorCode status = U_ZERO_ERROR;
-        u_init(&status);
-        if (U_FAILURE(status)) {
-            PyErr_Format(PyExc_RuntimeError, "ICU initialization failed (ICU_DATA=%s)", env_icu_data);
-            return -1;
-        }
-        return 0;
-    }
-
-    // Avoid importing `lstring` (it imports `_lstring`). Use importlib.util.find_spec.
-    cppy::ptr importlib_util(PyImport_ImportModule("importlib.util"));
-    if (!importlib_util.get()) {
-        return -1;
-    }
-    cppy::ptr find_spec(PyObject_GetAttrString(importlib_util.get(), "find_spec"));
-    if (!find_spec.get()) {
-        return -1;
-    }
-    cppy::ptr spec(PyObject_CallFunction(find_spec.get(), "s", "lstring"));
-    if (!spec.get()) {
-        return -1;
-    }
-    if (spec.get() == Py_None) {
-        // If lstring package isn't present, ICU may still work if system data is available.
-        return 0;
-    }
-
-    cppy::ptr origin(PyObject_GetAttrString(spec.get(), "origin"));
-    if (!origin.get() || origin.get() == Py_None) {
-        return 0;
-    }
-
-    cppy::ptr os_path(PyImport_ImportModule("os.path"));
-    if (!os_path.get()) {
-        return -1;
-    }
-    cppy::ptr pkg_dir(PyObject_CallMethod(os_path.get(), "dirname", "O", origin.get()));
-    if (!pkg_dir.get()) {
-        return -1;
-    }
-    cppy::ptr data_dir_obj(PyObject_CallMethod(os_path.get(), "join", "Os", pkg_dir.get(), "_icu_data"));
-    if (!data_dir_obj.get()) {
-        return -1;
-    }
-
-    const char* data_dir = PyUnicode_AsUTF8(data_dir_obj.get());
-    if (!data_dir) {
-        return -1;
-    }
-
-    u_setDataDirectory(data_dir);
-    UErrorCode status = U_ZERO_ERROR;
-    u_init(&status);
-    if (U_FAILURE(status)) {
-        PyErr_Format(PyExc_RuntimeError, "ICU initialization failed (data dir: %s)", data_dir);
-        return -1;
-    }
-    return 0;
-}
-#endif
-
 // Module exec: create the L heap type from the PyType_Spec and store it in the module state
 static int lstring_mod_exec(PyObject *module) {
-    if (lstring_init_icu_data_dir() < 0) {
-        return -1;
-    }
     lstring_state *st = get_lstring_state(module);
     PyObject *type_obj = PyType_FromSpec(&LStr_spec);
     if (!type_obj) return -1;

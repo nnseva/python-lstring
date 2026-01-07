@@ -15,11 +15,7 @@
 #include "lstring_re_iterator.hxx"
 #include "lstring_re_pattern.hxx"
 
-#ifdef LSTRING_RE_USE_PYTHON_TRAITS
-    #include "lstring_re_python_traits.hxx"
-#else
-    #include "lstring_re_icu_traits.hxx"
-#endif
+#include "lstring_re_python_traits.hxx"
 
 #include "tptr.hxx"
 #include <cppy/cppy.h>
@@ -45,11 +41,7 @@ public:
     virtual ~LStrRegexBuffer() = default;
 
     // Store compiled regex directly
-#ifdef LSTRING_RE_USE_PYTHON_TRAITS
     using traits_t = boost::regex_traits_wrapper<lstring_re::python_u32_regex_traits>;
-#else
-    using traits_t = boost::regex_traits_wrapper<lstring_re::icu_u32_regex_traits>;
-#endif
     boost::basic_regex<CharT, traits_t> re;
 };
 
