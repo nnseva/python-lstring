@@ -161,6 +161,7 @@ static PyObject* Pattern_match(PyObject *self_obj, PyObject *args) {
         LStrObject *lobj = subject_owner.get();
         LStrIteratorBuffer<CharT> begin(lobj, pos);
         LStrIteratorBuffer<CharT> end(lobj, endpos);
+        boost::smatch results;
         found = boost::regex_search(begin, end, matchbuf->results, self->buf->re, boost::match_continuous);
     } catch (const std::exception &e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());

@@ -149,11 +149,36 @@ Match_get_endpos(PyObject *self_obj, void * /*closure*/) {
     return PyLong_FromSsize_t(reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf)->endpos);
 }
 
+// Match.lastindex (read-only) -> int | None
+// Index of the last matched capturing group.
+static PyObject*
+Match_get_lastindex(PyObject *self_obj, void * /*closure*/) {
+    MatchObject *self = (MatchObject*)self_obj;
+    if (!self->matchbuf) {
+        PyErr_SetString(PyExc_AttributeError, "Match object not initialized");
+        return nullptr;
+    }
+
+    auto *buf = reinterpret_cast<LStrMatchBuffer<CharT>*>(self->matchbuf);
+    if (buf->results.size() <= 1) {
+        Py_RETURN_NONE;
+    }
+
+    for (Py_ssize_t i = static_cast<Py_ssize_t>(buf->results.size()) - 1; i >= 1; --i) {
+        if (buf->results[static_cast<size_t>(i)].matched) {
+            return PyLong_FromSsize_t(i);
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
 static PyGetSetDef Match_getset[] = {
     {(char*)"string", (getter)Match_get_string, nullptr, (char*)"Subject object used for this match (read-only).", nullptr},
     {(char*)"re", (getter)Match_get_re, nullptr, (char*)"Pattern object used for this match (read-only).", nullptr},
     {(char*)"pos", (getter)Match_get_pos, nullptr, (char*)"Start position passed to the pattern method (read-only).", nullptr},
     {(char*)"endpos", (getter)Match_get_endpos, nullptr, (char*)"End position passed to the pattern method (read-only).", nullptr},
+    {(char*)"lastindex", (getter)Match_get_lastindex, nullptr, (char*)"Index of the last matched capturing group, or None (read-only).", nullptr},
     {nullptr, nullptr, nullptr, nullptr, nullptr}
 };
 

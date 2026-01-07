@@ -107,6 +107,40 @@ class TestMatchReturnType(unittest.TestCase):
         # endpos < 0 clamps to 0, making the effective search range empty
         self.assertIsNone(p.search(s, 0, -1))
 
+    def test_endpos_less_than_pos_no_match(self):
+        # CPython `re` treats endpos < pos as an empty search range => no match.
+        p = lre.compile('a')
+        s = L('ba')
+        self.assertIsNone(p.search(s, 2, 1))
+
+    def test_lastindex_lastgroup_no_groups(self):
+        p = lre.compile('a')
+        m = p.search('ba')
+        self.assertIsNotNone(m)
+        self.assertIsNone(m.lastindex)
+        # self.assertIsNone(m.lastgroup)
+
+    def test_lastindex_lastgroup_unnamed_groups(self):
+        p = lre.compile('(a)(b)')
+        m = p.search('ab')
+        self.assertIsNotNone(m)
+        self.assertEqual(m.lastindex, 2)
+        # self.assertIsNone(m.lastgroup)
+
+    def test_lastindex_lastgroup_named_groups(self):
+        p = lre.compile(r'(?P<x>a)(?P<y>b)')
+        m = p.search('ab')
+        self.assertIsNotNone(m)
+        self.assertEqual(m.lastindex, 2)
+        # self.assertEqual(m.lastgroup, 'y')
+
+    def test_lastindex_lastgroup_optional_group_unmatched(self):
+        p = lre.compile(r'(?P<x>a)?b')
+        m = p.search('b')
+        self.assertIsNotNone(m)
+        self.assertIsNone(m.lastindex)
+        # self.assertIsNone(m.lastgroup)
+
     def test_string_attribute_L_identity(self):
         subject = self.subject_L
         m = self.pattern.match(subject)
