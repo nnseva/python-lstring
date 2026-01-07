@@ -9,8 +9,12 @@
 
 #include <cppy/ptr.h>
 
-#include <unicode/uclean.h>
-#include <unicode/putil.h>
+#ifdef LSTRING_RE_USE_PYTHON_TRAITS
+#else
+    // ICU includes
+    #include <unicode/uclean.h>
+    #include <unicode/putil.h>
+#endif
 
 #include "lstring.hxx"
 #include "lstring_re.hxx"
@@ -84,6 +88,9 @@ static void lstring_free(void *module) {
     lstring_clear((PyObject*)module);
 }
 
+#ifdef LSTRING_RE_USE_PYTHON_TRAITS
+#else
+// Initialize ICU data directory
 static int lstring_init_icu_data_dir() {
     // If user already provided ICU_DATA, respect it.
     const char* env_icu_data = std::getenv("ICU_DATA");
@@ -148,6 +155,7 @@ static int lstring_init_icu_data_dir() {
     }
     return 0;
 }
+#endif
 
 // Module exec: create the L heap type from the PyType_Spec and store it in the module state
 static int lstring_mod_exec(PyObject *module) {
