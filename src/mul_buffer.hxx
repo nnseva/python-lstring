@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <cstdint>
 
-#include "buffer.hxx"
+#include "lstring.hxx"
 #include "str_buffer.hxx"
 #include "lstring.hxx"
 #include "tptr.hxx"

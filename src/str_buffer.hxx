@@ -6,7 +6,7 @@
 #include <cstring>
 #include <cppy/ptr.h>
 
-#include "buffer.hxx"
+#include "lstring.hxx"
 
 /**
  * @brief StrBuffer base class (backed by a Python str)

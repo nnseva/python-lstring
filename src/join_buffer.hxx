@@ -4,7 +4,7 @@
 #include <Python.h>
 #include <cstdint>
 
-#include "buffer.hxx"
+#include "lstring.hxx"
 #include "str_buffer.hxx"
 #include "tptr.hxx"
 #include "lstring_utils.hxx"

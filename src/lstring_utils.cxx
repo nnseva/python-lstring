@@ -8,7 +8,7 @@
 #include "lstring_utils.hxx"
 #include "tptr.hxx"
 #include <cppy/cppy.h>
-#include "buffer.hxx"
+#include "lstring.hxx"
 #include "str_buffer.hxx"
 
 /**

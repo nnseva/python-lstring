@@ -6,9 +6,9 @@
 #include <Python.h>
 #include <cstdio>
 
-#include "lstring.hxx"
+#include "_lstring.hxx"
 #include "lstring_utils.hxx"
-#include "buffer.hxx"
+#include "lstring.hxx"
 #include "str_buffer.hxx"
 #include "join_buffer.hxx"
 #include "mul_buffer.hxx"

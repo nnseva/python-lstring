@@ -24,16 +24,16 @@ extern PyType_Spec LStr_spec;
 /**
  * @brief Global process-wide optimize threshold.
  */
-Py_ssize_t g_optimize_threshold = 0;
+Py_ssize_t LStr_optimize_threshold = 0;
 
 // Module-level accessors (exposed to Python).
 static PyObject* lstring_get_optimize_threshold(PyObject *self, PyObject *Py_UNUSED(ignored)) {
-    return PyLong_FromSsize_t(g_optimize_threshold);
+    return PyLong_FromSsize_t(LStr_optimize_threshold);
 }
 
 static PyObject* lstring_set_optimize_threshold(PyObject *self, PyObject *arg) {
     if (arg == Py_None) {
-        g_optimize_threshold = 0;
+        LStr_optimize_threshold = 0;
         Py_RETURN_NONE;
     }
     if (!PyLong_Check(arg)) {
@@ -42,7 +42,7 @@ static PyObject* lstring_set_optimize_threshold(PyObject *self, PyObject *arg) {
     }
     Py_ssize_t v = PyLong_AsSsize_t(arg);
     if (v == -1 && PyErr_Occurred()) return nullptr;
-    g_optimize_threshold = v;
+    LStr_optimize_threshold = v;
     Py_RETURN_NONE;
 }
 

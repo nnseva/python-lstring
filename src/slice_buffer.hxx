@@ -6,7 +6,7 @@
 #include <cstdint>
 
 #include "lstring.hxx"
-#include "buffer.hxx"
+#include "lstring.hxx"
 #include "str_buffer.hxx"
 #include "tptr.hxx"
 #include "lstring_utils.hxx"

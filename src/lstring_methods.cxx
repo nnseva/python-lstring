@@ -6,7 +6,7 @@
 #include <Python.h>
 #include "lstring.hxx"
 #include "lstring_utils.hxx"
-#include "buffer.hxx"
+#include "lstring.hxx"
 #include "str_buffer.hxx"
 #include "tptr.hxx"
 
