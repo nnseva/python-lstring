@@ -10,7 +10,6 @@
 #include <cppy/ptr.h>
 
 #include "lstring.hxx"
-#include "lstring_re.hxx"
 
 /**
  * @brief Module-local state structure used by the multi-phase init.
@@ -21,9 +20,6 @@ struct lstring_state {
 
 // The LStr_spec is defined in the implementation file for the type.
 extern PyType_Spec LStr_spec;
-
-// Factory created in lstring_re_module.cxx; exported with C linkage.
-extern "C" PyObject* lstring_re_create_submodule();
 
 /**
  * @brief Global process-wide optimize threshold.
@@ -104,9 +100,6 @@ static int lstring_mod_exec(PyObject *module) {
     if (PyModule_AddIntConstant(module, "CHAR_NUMERIC", CHAR_NUMERIC) < 0) return -1;
     if (PyModule_AddIntConstant(module, "CHAR_PRINTABLE", CHAR_PRINTABLE) < 0) return -1;
 
-    if (lstring_re_mod_exec(module) < 0) {
-        return -1;
-    }
     return 0;
 }
 
