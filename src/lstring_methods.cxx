@@ -25,6 +25,7 @@ static PyObject* LStr_rfindcc(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_parse_printf_positional(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_parse_printf_named(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_parse_format_placeholder(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_parse_fformat_placeholder(LStrObject *self, PyObject *args, PyObject *kwds);
 
 // Character classification methods
 static PyObject* LStr_isspace(LStrObject *self, PyObject *Py_UNUSED(ignored));
@@ -60,6 +61,7 @@ PyMethodDef LStr_methods[] = {
     {"_parse_printf_positional", (PyCFunction)LStr_parse_printf_positional, METH_VARARGS | METH_KEYWORDS, "Parse positional printf placeholder: _parse_printf_positional(start_pos) -> (end_pos, is_escape, star_count)"},
     {"_parse_printf_named", (PyCFunction)LStr_parse_printf_named, METH_VARARGS | METH_KEYWORDS, "Parse named printf placeholder: _parse_printf_named(start_pos) -> (end_pos, is_escape, name_end)"},
     {"_parse_format_placeholder", (PyCFunction)LStr_parse_format_placeholder, METH_VARARGS | METH_KEYWORDS, "Parse format placeholder: _parse_format_placeholder(start_pos) -> (end_pos, token_type, content_end)"},
+    {"_parse_fformat_placeholder", (PyCFunction)LStr_parse_fformat_placeholder, METH_VARARGS | METH_KEYWORDS, "Parse f-string placeholder: _parse_fformat_placeholder(start_pos) -> (end_pos, token_type, content_end, expr_end)"},
     {"isspace", (PyCFunction)LStr_isspace, METH_NOARGS, "Return True if all characters are whitespace, False otherwise"},
     {"isalpha", (PyCFunction)LStr_isalpha, METH_NOARGS, "Return True if all characters are alphabetic, False otherwise"},
     {"isdigit", (PyCFunction)LStr_isdigit, METH_NOARGS, "Return True if all characters are digits, False otherwise"},
@@ -1447,6 +1449,215 @@ static PyObject* LStr_parse_format_placeholder(LStrObject *self, PyObject *args,
         } else {
             // Unmatched } - invalid (caller should skip it)
             return Py_BuildValue("(nii)", start_pos + 1, 0, -1);
+        }
+    } else {
+        PyErr_SetString(PyExc_ValueError, "start_pos must point to { or }");
+        return nullptr;
+    }
+}
+
+
+/**
+ * @brief Find the end of a Python expression in an f-string placeholder.
+ * 
+ * Tracks nested brackets (), [], {} and quoted strings to find where the
+ * expression ends (at : for format spec, ! for conversion, or } for end).
+ * 
+ * @param buf Buffer containing the format string
+ * @param start Starting position (after opening {)
+ * @param length Total buffer length
+ * @return Position where expression ends, or -1 if not found
+ */
+static Py_ssize_t _find_fstring_expr_end(Buffer* buf, Py_ssize_t start, Py_ssize_t length) {
+    int paren_depth = 0;
+    int bracket_depth = 0;
+    int brace_depth = 0;
+    bool in_string = false;
+    uint32_t quote_char = 0;
+    bool is_raw = false;
+    bool is_triple = false;
+    
+    for (Py_ssize_t i = start; i < length; i++) {
+        uint32_t ch = buf->value(i);
+        
+        // Handle string literals
+        if (!in_string) {
+            // Check for raw string prefix
+            if ((ch == 'r' || ch == 'R') && i + 1 < length) {
+                uint32_t next = buf->value(i + 1);
+                if (next == '\'' || next == '"') {
+                    is_raw = true;
+                    i++;
+                    ch = buf->value(i);
+                }
+            }
+            
+            // Check for string start
+            if (ch == '\'' || ch == '"') {
+                in_string = true;
+                quote_char = ch;
+                // Check for triple-quoted string
+                if (i + 2 < length && buf->value(i + 1) == ch && buf->value(i + 2) == ch) {
+                    is_triple = true;
+                    i += 2;
+                }
+                continue;
+            }
+        } else {
+            // Inside string - look for end
+            if (is_triple) {
+                // Triple-quoted string ends with three quotes
+                if (ch == quote_char && i + 2 < length && 
+                    buf->value(i + 1) == quote_char && buf->value(i + 2) == quote_char) {
+                    if (!is_raw || i == start || buf->value(i - 1) != '\\') {
+                        in_string = false;
+                        is_triple = false;
+                        is_raw = false;
+                        i += 2;
+                        continue;
+                    }
+                }
+            } else {
+                // Single-quoted string
+                if (ch == quote_char) {
+                    if (!is_raw || i == start || buf->value(i - 1) != '\\') {
+                        in_string = false;
+                        is_raw = false;
+                        continue;
+                    }
+                }
+            }
+            // Skip everything inside strings
+            continue;
+        }
+        
+        // Track bracket depth (only outside strings)
+        if (ch == '(') {
+            paren_depth++;
+        } else if (ch == ')') {
+            paren_depth--;
+            if (paren_depth < 0) return -1;  // Unbalanced
+        } else if (ch == '[') {
+            bracket_depth++;
+        } else if (ch == ']') {
+            bracket_depth--;
+            if (bracket_depth < 0) return -1;  // Unbalanced
+        } else if (ch == '{') {
+            brace_depth++;
+        } else if (ch == '}') {
+            // Closing brace at depth 0 ends the placeholder
+            if (brace_depth == 0 && paren_depth == 0 && bracket_depth == 0) {
+                return i;
+            }
+            brace_depth--;
+            if (brace_depth < 0) return -1;  // Unbalanced
+        } else if ((ch == ':' || ch == '!') && paren_depth == 0 && bracket_depth == 0 && brace_depth == 0) {
+            // Format spec or conversion at depth 0
+            return i;
+        }
+    }
+    
+    return -1;  // Unclosed expression
+}
+
+
+/**
+ * @brief _parse_fformat_placeholder(self, start_pos)
+ *
+ * Parse an f-string style placeholder or escape sequence starting at start_pos.
+ * start_pos must point to { or } character.
+ * 
+ * Returns a tuple: (end_pos, token_type, content_end, expr_end) where:
+ *   - end_pos: Position after the token (-1 if invalid/unmatched)
+ *   - token_type: 0=invalid, 1=literal {{ (open), 2=literal }} (close), 3=placeholder
+ *   - content_end: For placeholder - position before closing }, otherwise -1
+ *   - expr_end: For placeholder - position where expression ends (before : ! or }), otherwise -1
+ */
+static PyObject* LStr_parse_fformat_placeholder(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"start_pos", nullptr};
+    Py_ssize_t start_pos;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "n:_parse_fformat_placeholder", kwlist, &start_pos)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t length = (Py_ssize_t)buf->length();
+
+    if (start_pos < 0 || start_pos >= length) {
+        PyErr_SetString(PyExc_ValueError, "start_pos out of range");
+        return nullptr;
+    }
+
+    uint32_t ch = buf->value(start_pos);
+    
+    if (ch == '{') {
+        // Check for {{ escape
+        if (start_pos + 1 < length && buf->value(start_pos + 1) == '{') {
+            // Literal { escape sequence
+            return Py_BuildValue("(niii)", start_pos + 2, 1, -1, -1);
+        }
+        
+        // Find end of expression
+        Py_ssize_t expr_end = _find_fstring_expr_end(buf, start_pos + 1, length);
+        
+        if (expr_end == -1) {
+            // Unclosed or invalid expression
+            return Py_BuildValue("(niii)", -1, 0, -1, -1);
+        }
+        
+        // Now find the actual closing }
+        Py_ssize_t pos = expr_end;
+        uint32_t end_ch = buf->value(pos);
+        
+        if (end_ch == '!') {
+            // Conversion: !r, !s, !a
+            pos++;
+            if (pos < length) {
+                uint32_t conv = buf->value(pos);
+                if (conv == 'r' || conv == 's' || conv == 'a') {
+                    pos++;
+                } else {
+                    // Invalid conversion
+                    return Py_BuildValue("(niii)", -1, 0, -1, -1);
+                }
+            }
+            // After conversion, might have format spec
+            if (pos < length && buf->value(pos) == ':') {
+                // Skip format spec (everything until })
+                while (pos < length && buf->value(pos) != '}') {
+                    pos++;
+                }
+            }
+        } else if (end_ch == ':') {
+            // Format spec - skip until }
+            pos++;
+            while (pos < length && buf->value(pos) != '}') {
+                pos++;
+            }
+        }
+        // end_ch == '}' - just close
+        
+        if (pos >= length || buf->value(pos) != '}') {
+            // Missing closing brace
+            return Py_BuildValue("(niii)", -1, 0, -1, -1);
+        }
+        
+        // Found complete placeholder: {expr[!conv][:spec]}
+        return Py_BuildValue("(niii)", pos + 1, 3, pos, expr_end);
+        
+    } else if (ch == '}') {
+        // Check for }} escape
+        if (start_pos + 1 < length && buf->value(start_pos + 1) == '}') {
+            // Literal } escape sequence
+            return Py_BuildValue("(niii)", start_pos + 2, 2, -1, -1);
+        } else {
+            // Unmatched } - invalid (caller should skip it)
+            return Py_BuildValue("(niii)", start_pos + 1, 0, -1, -1);
         }
     } else {
         PyErr_SetString(PyExc_ValueError, "start_pos must point to { or }");

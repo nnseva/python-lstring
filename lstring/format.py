@@ -1,9 +1,9 @@
 """
-Printf-style string formatting for lazy strings.
+Printf-style and f-string style formatting for lazy strings.
 
-This module provides printf-style formatting (%) support for L instances,
-allowing format strings to remain lazy while delegating actual formatting
-to Python's built-in str % operator.
+This module provides printf-style (%) and f-string style formatting support
+for L instances, allowing format strings to remain lazy while delegating
+actual formatting to Python's built-in operators and eval.
 """
 
 import types
@@ -256,7 +256,10 @@ def format(format_str, args=(), kwargs=types.MappingProxyType({})):
             if next_pos == -1:
                 # No more braces - yield rest of string
                 if last_pos < length:
-                    yield format_str[last_pos:]
+                    if last_pos > 0:
+                        yield format_str[last_pos:]
+                    else:
+                        yield format_str
                 break
             
             # Parse the token at this position
@@ -314,3 +317,111 @@ def format(format_str, args=(), kwargs=types.MappingProxyType({})):
             pos = end_pos
     
     return L('').join(format_parts())
+
+
+def fformat(format_str, globals_dict=None, locals_dict=None):
+    """
+    Format a lazy string using f-string style formatting with expression evaluation.
+    
+    This function implements f-string style formatting for L instances with support
+    for arbitrary Python expressions. Unlike the format() function which only accepts
+    pre-computed values, fformat() evaluates expressions dynamically using eval().
+    
+    Args:
+        format_str: Format string (L or str instance)
+        globals_dict: Global namespace for expression evaluation (dict or None)
+        locals_dict: Local namespace for expression evaluation (dict or None)
+    
+    Returns:
+        L: Formatted lazy string
+    
+    Examples:
+        >>> x = 42
+        >>> fformat(L('Result: {x * 2}'), globals(), locals())
+        L('Result: 84')
+        >>> name = 'Alice'
+        >>> fformat(L('Hello {name.upper()}!'), globals(), locals())
+        L('Hello ALICE!')
+        >>> fformat(L('Pi: {22/7:.2f}'), globals(), locals())
+        L('Pi: 3.14')
+    
+    Notes:
+        - Supports arbitrary Python expressions inside {}
+        - Supports format specs: {expr:.2f}, {expr:>10}
+        - Supports conversions: {expr!r}, {expr!s}, {expr!a}
+        - {{ and }} are literal braces
+        - If globals_dict or locals_dict is None, uses caller's namespace
+        - Results are converted: L stays L, str becomes L, others go through str()
+    """
+    from .lstring import L
+    import inspect
+    
+    # Convert format_str to L if needed
+    if isinstance(format_str, str):
+        format_str = L(format_str)
+    
+    # Get caller's namespace if not provided
+    if globals_dict is None or locals_dict is None:
+        frame = inspect.currentframe().f_back
+        if globals_dict is None:
+            globals_dict = frame.f_globals
+        if locals_dict is None:
+            locals_dict = frame.f_locals
+        del frame
+    
+    def format_parts():
+        """Generator that yields formatted parts of the string."""
+        pos = 0
+        length = len(format_str)
+        last_pos = 0
+        
+        while pos < length:
+            # Find next { or }
+            next_pos = format_str.findcs('{}', pos)
+            
+            if next_pos == -1:
+                # No more braces - yield rest of string
+                if last_pos < length:
+                    yield format_str[last_pos:]
+                break
+            
+            # Parse the token at this position
+            end_pos, token_type, content_end, expr_end = format_str._parse_fformat_placeholder(next_pos)
+            
+            if end_pos == -1:
+                # Invalid/unclosed - skip this character
+                pos = next_pos + 1
+                continue
+            
+            # Yield static part before this token
+            if next_pos > last_pos:
+                yield format_str[last_pos:next_pos]
+            
+            if token_type == 1:
+                # Literal {{ -> {
+                yield L('{')
+            elif token_type == 2:
+                # Literal }} -> }
+                yield L('}')
+            elif token_type == 3:
+                # Placeholder {expr[!conv][:spec]}
+                # Extract expression
+                expr_str = str(format_str[next_pos + 1:expr_end])
+                
+                # Evaluate the expression
+                try:
+                    result = eval(expr_str, globals_dict, locals_dict)
+                except Exception as e:
+                    # Re-raise with context about which expression failed
+                    raise type(e)(f"Error evaluating {{!{{expr_str}}!}}: {e}") from e
+                
+                # Apply conversion and/or format spec using str.format()
+                # Extract everything after expression: !r, :spec, !r:spec, or empty
+                format_suffix = str(format_str[expr_end:content_end])
+                yield L(('{' + format_suffix + '}').format(result))
+            
+            last_pos = end_pos
+            pos = end_pos
+    
+    return L('').join(format_parts())
+

@@ -6,9 +6,10 @@ exposing the L class and re submodule for lazy string operations.
 """
 
 import _lstring
+import inspect
 from enum import IntFlag
 from functools import partial
-from .format import printf, format as _format
+from .format import printf, format as _format, fformat as _fformat
 
 
 class CharClass(IntFlag):
@@ -139,6 +140,48 @@ class L(_lstring.L):
             - Supports nested placeholders in format specs
         """
         return _format(self, args=args, kwargs=kwargs)
+    
+    def f(self, globals_dict=None, locals_dict=None):
+        """
+        Format string using f-string style with expression evaluation.
+        
+        This method evaluates Python expressions inside {} placeholders,
+        supporting the full f-string syntax including conversions and format specs.
+        
+        Args:
+            globals_dict: Global namespace for expression evaluation (optional)
+            locals_dict: Local namespace for expression evaluation (optional)
+        
+        Returns:
+            L: Formatted lazy string
+        
+        Examples:
+            >>> x = 42
+            >>> L('Result: {x * 2}').f(globals(), locals())
+            L('Result: 84')
+            >>> name = 'Alice'
+            >>> L('Hello {name.upper()}!').f(globals(), locals())
+            L('Hello ALICE!')
+            >>> L('Pi: {22/7:.2f}').f(globals(), locals())
+            L('Pi: 3.14')
+        
+        Notes:
+            - If globals_dict or locals_dict is None, uses caller's namespace
+            - Supports arbitrary Python expressions: {x + y}, {func(arg)}
+            - Supports conversions: {expr!r}, {expr!s}, {expr!a}
+            - Supports format specs: {expr:.2f}, {expr:>10}
+            - {{ and }} are literal braces
+        """
+        # Get caller's namespace if not provided
+        if globals_dict is None or locals_dict is None:
+            frame = inspect.currentframe().f_back
+            if globals_dict is None:
+                globals_dict = frame.f_globals
+            if locals_dict is None:
+                locals_dict = frame.f_locals
+            del frame
+        
+        return _fformat(self, globals_dict, locals_dict)
     
     def format_map(self, mapping):
         """
