@@ -3,7 +3,7 @@
 /** Internal header for the lstring module */
 
 #include <Python.h>
-#include "lstring.hxx"
+#include "lstring/lstring.hxx"
 
 /* Method table (defined in src/lstring_methods.cxx) */
 extern PyMethodDef LStr_methods[];

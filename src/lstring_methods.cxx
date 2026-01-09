@@ -4,9 +4,8 @@
  */
 
 #include <Python.h>
-#include "lstring.hxx"
 #include "lstring_utils.hxx"
-#include "lstring.hxx"
+#include "lstring/lstring.hxx"
 #include "str_buffer.hxx"
 #include "tptr.hxx"
 

@@ -4,11 +4,10 @@
  */
 
 #include <Python.h>
-#include "lstring.hxx"
 #include "lstring_utils.hxx"
 #include "tptr.hxx"
 #include <cppy/cppy.h>
-#include "lstring.hxx"
+#include "lstring/lstring.hxx"
 #include "str_buffer.hxx"
 
 /**

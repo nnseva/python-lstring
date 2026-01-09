@@ -9,7 +9,7 @@
 
 #include <cppy/ptr.h>
 
-#include "lstring.hxx"
+#include "lstring/lstring.hxx"
 
 /**
  * @brief Module-local state structure used by the multi-phase init.

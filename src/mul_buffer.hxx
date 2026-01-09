@@ -5,9 +5,8 @@
 #include <stdexcept>
 #include <cstdint>
 
-#include "lstring.hxx"
+#include "lstring/lstring.hxx"
 #include "str_buffer.hxx"
-#include "lstring.hxx"
 #include "tptr.hxx"
 #include "lstring_utils.hxx"
 #include <cppy/ptr.h>

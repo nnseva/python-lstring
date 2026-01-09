@@ -1,4 +1,4 @@
-#include "lstring.hxx"
+#include "lstring/lstring.hxx"
 #include "_lstring.hxx"
 
 Buffer* Buffer::optimize() {

@@ -17,14 +17,14 @@ ext_modules = [
             'src/lstring_module.cxx',
             'src/buffer.cxx',
         ],
-        include_dirs=['.'],
+        include_dirs=['.', './include'],
         depends=[
             'src/join_buffer.hxx',
             'src/mul_buffer.hxx',
             'src/slice_buffer.hxx',
             'src/str_buffer.hxx',
             'src/tptr.hxx',
-            'src/lstring.hxx',
+            'lstring/include/lstring/lstring.hxx',
             'src/_lstring.hxx',
             'src/lstring_utils.hxx',
         ],
@@ -42,6 +42,7 @@ class BuildExt(build_ext):
         for ext in self.extensions:
             # cppy.get_include() collect the path of the header files
             ext.include_dirs.insert(0, cppy.get_include())
+            ext.include_dirs.insert(0, 'lstring/include')
 
         build_ext.build_extensions(self)
 
@@ -51,6 +52,7 @@ setup(
     python_requires='>=3.5',
     # build-time requirements are declared in pyproject.toml
     packages=['lstring'],
+    package_data={'lstring': ['include/lstring/lstring.hxx']},
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExt},
 )
