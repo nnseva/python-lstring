@@ -7,51 +7,8 @@ to Python's built-in str % operator.
 """
 
 import types
-from typing import Union
+from typing import Union, Optional
 from collections.abc import Mapping
-
-
-# Regex patterns will be initialized after module load to avoid circular imports
-POSITIONAL_SPEC_PATTERN = None
-NAMED_SPEC_PATTERN = None
-
-
-def _init_patterns():
-    """Initialize regex patterns for format specifiers."""
-    global POSITIONAL_SPEC_PATTERN, NAMED_SPEC_PATTERN
-    
-    if POSITIONAL_SPEC_PATTERN is not None:
-        return  # Already initialized
-    
-    from . import re
-    
-    # Regex pattern for positional (unnamed) printf-style format specifiers
-    # Matches: %[flags][width][.precision][length]type
-    # Named groups (boost::regex syntax):
-    #   flags: #, 0, -, space, +
-    #   width: number or *
-    #   precision: number or * (without the dot)
-    #   length: h, l, L (usually ignored in Python)
-    #   type: d, i, o, u, x, X, e, E, f, F, g, G, c, r, s, a, %
-    globals()['POSITIONAL_SPEC_PATTERN'] = re.compile(
-        r'%(?<flags>[#0 +\-]*)(?<width>\*|\d+)?(?:\.(?<precision>\*|\d+))?(?<length>[hlL])?(?<type>[diouxXeEfFgGcrsa%])',
-        compatible=False
-    )
-    
-    # Regex pattern for named printf-style format specifiers
-    # Matches: %(name)[flags][width][.precision][length]type OR %%
-    # Named groups (boost::regex syntax):
-    #   name: any characters except ) (only for named placeholders)
-    #   flags, width, precision, length, type: same as positional (only for named placeholders)
-    #   escape: % (only for %% escape sequences)
-    # Note: Named placeholders don't support * wildcards (no "next value" concept in dicts)
-    globals()['NAMED_SPEC_PATTERN'] = re.compile(
-        r'%(?:\((?<name>[^)]+)\)(?<flags>[#0 +\-]*)(?<width>\d+)?(?:\.(?<precision>\d+))?(?<length>[hlL])?(?<type>[diouxXeEfFgGcrsa])|(?<escape>%))',
-        compatible=False
-    )
-    
-    POSITIONAL_SPEC_PATTERN = globals()['POSITIONAL_SPEC_PATTERN']
-    NAMED_SPEC_PATTERN = globals()['NAMED_SPEC_PATTERN']
 
 
 def _printf_pos(format_str, placeholders: tuple):
@@ -67,49 +24,54 @@ def _printf_pos(format_str, placeholders: tuple):
     """
     from .lstring import L
     
-    # Initialize patterns if needed
-    _init_patterns()
-    
     def format_parts():
         """Generator that yields formatted parts of the string."""
         last_pos = 0
         value_idx = 0
+        length = len(format_str)
         
-        for match in POSITIONAL_SPEC_PATTERN.finditer(format_str):
-            # Yield static part before this match
-            if match.start() > last_pos:
-                yield format_str[last_pos:match.start()]
+        while last_pos < length:
+            # Find next %
+            percent_pos = format_str.findc('%', last_pos)
             
-            # Get the matched specifier
-            spec_type = match.group('type')
+            if percent_pos == -1:
+                # No more placeholders - yield rest of string
+                yield format_str[last_pos:]
+                break
             
-            # Handle %% escape sequence
-            if spec_type == '%':
+            # Yield static part before %
+            if percent_pos > last_pos:
+                yield format_str[last_pos:percent_pos]
+            
+            # Parse the placeholder
+            end_pos, is_escape, star_count = format_str._parse_printf_positional(percent_pos)
+            
+            if end_pos == -1:
+                # Invalid placeholder - let str % handle the error
+                # Yield the % and continue
                 yield L('%')
-                last_pos = match.end()
+                last_pos = percent_pos + 1
                 continue
             
-            # Get the full placeholder text
-            placeholder = str(match.group())
+            if is_escape:
+                # %% escape sequence
+                yield L('%')
+                last_pos = end_pos
+                continue
             
-            # Count how many * wildcards are in the placeholder
-            # Each * consumes an additional value from the tuple
-            star_count = placeholder.count('*')
+            # Valid placeholder - extract it
+            placeholder = str(format_str[percent_pos:end_pos])
             
             # Extract values for this placeholder
-            # If there are N stars, we need N+1 values: N for stars, 1 for the actual value
+            # We need star_count + 1 values: star_count for *, 1 for the actual value
             values = placeholders[value_idx:value_idx + star_count + 1]
             value_idx += star_count + 1
             
-            # Format the value using the original placeholder
+            # Format using str %
             formatted = placeholder % values
-            
             yield L(formatted)
-            last_pos = match.end()
-        
-        # Yield remaining part after last match
-        if last_pos < len(format_str):
-            yield format_str[last_pos:]
+            
+            last_pos = end_pos
     
     return L('').join(format_parts())
 
@@ -127,9 +89,6 @@ def _printf_dict(format_str, placeholders: Mapping):
     """
     from .lstring import L
     
-    # Initialize patterns if needed
-    _init_patterns()
-    
     # Convert all keys to L for consistent lookup
     # This handles both str and L keys in the input dict
     normalized_placeholders = {L(k) if isinstance(k, str) else k: v 
@@ -138,37 +97,53 @@ def _printf_dict(format_str, placeholders: Mapping):
     def format_parts():
         """Generator that yields formatted parts of the string."""
         last_pos = 0
+        length = len(format_str)
         
-        for match in NAMED_SPEC_PATTERN.finditer(format_str):
-            # Yield static part before this match
-            if match.start() > last_pos:
-                yield format_str[last_pos:match.start()]
+        while last_pos < length:
+            # Find next %
+            percent_pos = format_str.findc('%', last_pos)
             
-            # Check if this is an escape sequence
-            if match.group('escape'):
+            if percent_pos == -1:
+                # No more placeholders - yield rest of string
+                yield format_str[last_pos:]
+                break
+            
+            # Yield static part before %
+            if percent_pos > last_pos:
+                yield format_str[last_pos:percent_pos]
+            
+            # Parse the placeholder
+            end_pos, is_escape, name_end = format_str._parse_printf_named(percent_pos)
+            
+            if end_pos == -1:
+                # Invalid or positional placeholder - let str % handle the error
+                # Yield the % and continue
                 yield L('%')
-            else:
-                # Handle named placeholder
-                # Get the full placeholder text and name
-                placeholder = str(match.group())
-                name = match.group('name')  # Returns L object
-                
-                # Get value from dict using the name
-                value = normalized_placeholders[name]
-                
-                # Format the value using the original placeholder
-                # Create a temporary dict with str key for formatting
-                formatted = placeholder % {str(name): value}
-                
-                yield L(formatted)
+                last_pos = percent_pos + 1
+                continue
             
-            last_pos = match.end()
-        
-        # Yield remaining part after last match
-        if last_pos < len(format_str):
-            yield format_str[last_pos:]
+            if is_escape:
+                # %% escape sequence
+                yield L('%')
+                last_pos = end_pos
+                continue
+            
+            # Valid named placeholder - extract it and the name
+            placeholder = str(format_str[percent_pos:end_pos])
+            name = format_str[percent_pos + 2:name_end - 1]  # Skip %( and )
+            
+            # Get value from dict
+            value = normalized_placeholders[name]
+            
+            # Format using str %
+            # Create a temporary dict with str key for formatting
+            formatted = placeholder % {str(name): value}
+            yield L(formatted)
+            
+            last_pos = end_pos
     
     return L('').join(format_parts())
+
 
 
 def printf(format_str, placeholders: Union[dict, tuple]):
@@ -216,85 +191,6 @@ def printf(format_str, placeholders: Union[dict, tuple]):
     else:
         # Single value - wrap in tuple for positional formatting
         return _printf_pos(format_str, (placeholders,))
-
-
-def _find_outer_placeholders(format_str):
-    """
-    Find all outer-level placeholders in a format string.
-    
-    Yields tuples of (start, end, content) for each placeholder,
-    where content is the text inside {...} (without braces).
-    Also yields ('literal', start, end) for literal {{ and }} sequences.
-    
-    Args:
-        format_str: L instance containing format string
-    
-    Yields:
-        tuple: ('placeholder', start, end, content) or ('literal', start, end, text)
-    """
-    pos = 0
-    length = len(format_str)
-    
-    while pos < length:
-        # Find next { or }
-        open_pos = format_str.findc('{', pos)
-        close_pos = format_str.findc('}', pos)
-        
-        # Determine which comes first
-        if open_pos == -1 and close_pos == -1:
-            break  # No more braces
-        elif open_pos == -1:
-            next_pos = close_pos
-            next_char = '}'
-        elif close_pos == -1:
-            next_pos = open_pos
-            next_char = '{'
-        else:
-            if open_pos < close_pos:
-                next_pos = open_pos
-                next_char = '{'
-            else:
-                next_pos = close_pos
-                next_char = '}'
-        
-        # Check for escape sequences
-        if next_char == '{':
-            if next_pos + 1 < length and format_str[next_pos + 1] == '{':
-                # {{ escape - literal {
-                yield ('literal', next_pos, next_pos + 2, '{')
-                pos = next_pos + 2
-                continue
-            else:
-                # Start of placeholder - find matching }
-                start = next_pos
-                depth = 1
-                pos = next_pos + 1
-                
-                while pos < length and depth > 0:
-                    ch = format_str[pos]
-                    if ch == '{':
-                        depth += 1
-                    elif ch == '}':
-                        # Inside placeholder, } always closes a level
-                        # No }} escape handling here - that's only at depth 0
-                        depth -= 1
-                    pos += 1
-                
-                if depth == 0:
-                    # Found complete placeholder
-                    content = format_str[start + 1:pos - 1]
-                    yield ('placeholder', start, pos, content)
-                else:
-                    # Unclosed brace - let str.format handle the error
-                    pos = start + 1
-        else:  # next_char == '}'
-            if next_pos + 1 < length and format_str[next_pos + 1] == '}':
-                # }} escape - literal }
-                yield ('literal', next_pos, next_pos + 2, '}')
-                pos = next_pos + 2
-            else:
-                # Unmatched } - let str.format handle the error
-                pos = next_pos + 1
 
 
 def format(format_str, args=(), kwargs=types.MappingProxyType({})):
@@ -349,21 +245,41 @@ def format(format_str, args=(), kwargs=types.MappingProxyType({})):
         has_auto = False
         has_numbered = False
         
-        for token in _find_outer_placeholders(format_str):
-            token_type = token[0]
-            start = token[1]
-            end = token[2]
+        # Parse placeholders using _parse_format_placeholder
+        pos = 0
+        length = len(format_str)
+        
+        while pos < length:
+            # Find next { or }
+            next_pos = format_str.findcs('{}', pos)
+            
+            if next_pos == -1:
+                # No more braces - yield rest of string
+                if last_pos < length:
+                    yield format_str[last_pos:]
+                break
+            
+            # Parse the token at this position
+            end_pos, token_type, content_end = format_str._parse_format_placeholder(next_pos)
+            
+            if end_pos == -1:
+                # Invalid/unclosed - skip this character
+                pos = next_pos + 1
+                continue
             
             # Yield static part before this token
-            if start > last_pos:
-                yield format_str[last_pos:start]
+            if next_pos > last_pos:
+                yield format_str[last_pos:next_pos]
             
-            if token_type == 'literal':
-                # Literal { or } from escape sequence
-                yield L(token[3])
-            else:
-                # Placeholder
-                content = token[3]
+            if token_type == 1:
+                # Literal {{ -> {
+                yield L('{')
+            elif token_type == 2:
+                # Literal }} -> }
+                yield L('}')
+            elif token_type == 3:
+                # Placeholder {content}
+                content = format_str[next_pos + 1:content_end]
                 placeholder_str = '{' + str(content) + '}'
                 
                 # Determine placeholder type by looking at first character
@@ -394,10 +310,7 @@ def format(format_str, args=(), kwargs=types.MappingProxyType({})):
                 
                 yield L(formatted)
             
-            last_pos = end
-        
-        # Yield remaining part after last token
-        if last_pos < len(format_str):
-            yield format_str[last_pos:]
+            last_pos = end_pos
+            pos = end_pos
     
     return L('').join(format_parts())

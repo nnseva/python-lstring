@@ -197,7 +197,10 @@ class Match(_lstring.re.Match):
                 if backslash_pos == -1:
                     # No more backslashes, yield remainder and stop
                     if i < template_len:
-                        yield template[i:]
+                        if i > 0:
+                            yield template[i:]
+                        else:
+                            yield template
                     break
                 
                 # Yield literal text before backslash

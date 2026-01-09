@@ -22,6 +22,9 @@ static PyObject* LStr_findcr(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfindcr(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_findcc(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfindcc(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_parse_printf_positional(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_parse_printf_named(LStrObject *self, PyObject *args, PyObject *kwds);
+static PyObject* LStr_parse_format_placeholder(LStrObject *self, PyObject *args, PyObject *kwds);
 
 // Character classification methods
 static PyObject* LStr_isspace(LStrObject *self, PyObject *Py_UNUSED(ignored));
@@ -54,6 +57,9 @@ PyMethodDef LStr_methods[] = {
     {"rfindcr", (PyCFunction)LStr_rfindcr, METH_VARARGS | METH_KEYWORDS, "Find character in code point range from right: rfindcr(startcp, endcp, start=None, end=None, invert=False)"},
     {"findcc", (PyCFunction)LStr_findcc, METH_VARARGS | METH_KEYWORDS, "Find character by class: findcc(class_mask, start=None, end=None, invert=False)"},
     {"rfindcc", (PyCFunction)LStr_rfindcc, METH_VARARGS | METH_KEYWORDS, "Find character by class from right: rfindcc(class_mask, start=None, end=None, invert=False)"},
+    {"_parse_printf_positional", (PyCFunction)LStr_parse_printf_positional, METH_VARARGS | METH_KEYWORDS, "Parse positional printf placeholder: _parse_printf_positional(start_pos) -> (end_pos, is_escape, star_count)"},
+    {"_parse_printf_named", (PyCFunction)LStr_parse_printf_named, METH_VARARGS | METH_KEYWORDS, "Parse named printf placeholder: _parse_printf_named(start_pos) -> (end_pos, is_escape, name_end)"},
+    {"_parse_format_placeholder", (PyCFunction)LStr_parse_format_placeholder, METH_VARARGS | METH_KEYWORDS, "Parse format placeholder: _parse_format_placeholder(start_pos) -> (end_pos, token_type, content_end)"},
     {"isspace", (PyCFunction)LStr_isspace, METH_NOARGS, "Return True if all characters are whitespace, False otherwise"},
     {"isalpha", (PyCFunction)LStr_isalpha, METH_NOARGS, "Return True if all characters are alphabetic, False otherwise"},
     {"isdigit", (PyCFunction)LStr_isdigit, METH_NOARGS, "Return True if all characters are digits, False otherwise"},
@@ -1141,3 +1147,309 @@ static PyObject* LStr_rfindcc(LStrObject *self, PyObject *args, PyObject *kwds) 
     return PyLong_FromSsize_t(res);
 }
 
+
+/**
+ * @brief Check if character is a printf flag character (#, 0, space, +, -)
+ */
+static inline bool _is_printf_flag_char(uint32_t ch) {
+    switch (ch) {
+        case '#': case '0': case ' ': case '+': case '-':
+            return true;
+        default:
+            return false;
+    }
+}
+
+/**
+ * @brief Check if character is a printf length modifier (h, l, L)
+ */
+static inline bool _is_printf_length_char(uint32_t ch) {
+    switch (ch) {
+        case 'h': case 'l': case 'L':
+            return true;
+        default:
+            return false;
+    }
+}
+
+/**
+ * @brief Check if character is a printf type specifier
+ */
+static inline bool _is_printf_type_char(uint32_t ch) {
+    switch (ch) {
+        case 'd': case 'i': case 'o': case 'u':
+        case 'x': case 'X': case 'e': case 'E':
+        case 'f': case 'F': case 'g': case 'G':
+        case 'c': case 'r': case 's': case 'a':
+            return true;
+        default:
+            return false;
+    }
+}
+
+/**
+ * @brief parse_printf_positional(self, start_pos)
+ *
+ * Parse a positional printf-style placeholder starting at start_pos.
+ * Returns a tuple: (end_pos, is_escape, star_count) where:
+ *   - end_pos: Position after the placeholder (-1 if invalid)
+ *   - is_escape: True if this is %% escape sequence
+ *   - star_count: Number of * wildcards in width/precision
+ */
+static PyObject* LStr_parse_printf_positional(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"start_pos", nullptr};
+    Py_ssize_t start_pos;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "n:parse_printf_positional", kwlist, &start_pos)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t length = (Py_ssize_t)buf->length();
+
+    if (start_pos < 0 || start_pos >= length) {
+        PyErr_SetString(PyExc_ValueError, "start_pos out of range");
+        return nullptr;
+    }
+
+    // Must start with %
+    if (buf->value(start_pos) != '%') {
+        PyErr_SetString(PyExc_ValueError, "start_pos must point to %");
+        return nullptr;
+    }
+
+    Py_ssize_t pos = start_pos + 1;
+    
+    if (pos >= length) {
+        return Py_BuildValue("(nOi)", -1, Py_False, 0);
+    }
+    
+    // Check for %% escape
+    if (buf->value(pos) == '%') {
+        return Py_BuildValue("(nOi)", pos + 1, Py_True, 0);
+    }
+    
+    int star_count = 0;
+    
+    // Parse flags: #, 0, -, space, +
+    while (pos < length && _is_printf_flag_char(buf->value(pos))) {
+        pos++;
+    }
+    
+    // Parse width: number or *
+    if (pos < length && buf->value(pos) == '*') {
+        star_count++;
+        pos++;
+    } else {
+        while (pos < length && buf->value(pos) >= '0' && buf->value(pos) <= '9') {
+            pos++;
+        }
+    }
+    
+    // Parse precision: .number or .*
+    if (pos < length && buf->value(pos) == '.') {
+        pos++;
+        if (pos < length && buf->value(pos) == '*') {
+            star_count++;
+            pos++;
+        } else {
+            while (pos < length && buf->value(pos) >= '0' && buf->value(pos) <= '9') {
+                pos++;
+            }
+        }
+    }
+    
+    // Parse length: h, l, L
+    if (pos < length && _is_printf_length_char(buf->value(pos))) {
+        pos++;
+    }
+    
+    // Parse type: d, i, o, u, x, X, e, E, f, F, g, G, c, r, s, a
+    if (pos < length && _is_printf_type_char(buf->value(pos))) {
+        return Py_BuildValue("(nOi)", pos + 1, Py_False, star_count);
+    }
+    
+    // Invalid placeholder
+    return Py_BuildValue("(nOi)", -1, Py_False, 0);
+}
+
+
+/**
+ * @brief parse_printf_named(self, start_pos)
+ *
+ * Parse a named printf-style placeholder starting at start_pos.
+ * Returns a tuple: (end_pos, is_escape, name_end) where:
+ *   - end_pos: Position after the placeholder (-1 if invalid)
+ *   - is_escape: True if this is %% escape sequence
+ *   - name_end: Position after the closing ) of the name (-1 if not named)
+ */
+static PyObject* LStr_parse_printf_named(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"start_pos", nullptr};
+    Py_ssize_t start_pos;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "n:parse_printf_named", kwlist, &start_pos)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t length = (Py_ssize_t)buf->length();
+
+    if (start_pos < 0 || start_pos >= length) {
+        PyErr_SetString(PyExc_ValueError, "start_pos out of range");
+        return nullptr;
+    }
+
+    // Must start with %
+    if (buf->value(start_pos) != '%') {
+        PyErr_SetString(PyExc_ValueError, "start_pos must point to %");
+        return nullptr;
+    }
+
+    Py_ssize_t pos = start_pos + 1;
+    
+    if (pos >= length) {
+        return Py_BuildValue("(nOn)", -1, Py_False, -1);
+    }
+    
+    // Check for %% escape
+    if (buf->value(pos) == '%') {
+        return Py_BuildValue("(nOn)", pos + 1, Py_True, -1);
+    }
+    
+    // Check for named placeholder: %(name)
+    Py_ssize_t name_end = -1;
+    if (buf->value(pos) == '(') {
+        pos++;
+        // Find closing )
+        while (pos < length && buf->value(pos) != ')') {
+            pos++;
+        }
+        if (pos >= length) {
+            return Py_BuildValue("(nOn)", -1, Py_False, -1);  // Unclosed (
+        }
+        pos++;  // Skip )
+        name_end = pos;
+    }
+    
+    // If not named, it's invalid for named placeholder parser
+    if (name_end == -1) {
+        return Py_BuildValue("(nOn)", -1, Py_False, -1);
+    }
+    
+    // Parse flags: #, 0, -, space, +
+    while (pos < length && _is_printf_flag_char(buf->value(pos))) {
+        pos++;
+    }
+    
+    // Parse width: number (no * for named)
+    while (pos < length && buf->value(pos) >= '0' && buf->value(pos) <= '9') {
+        pos++;
+    }
+    
+    // Parse precision: .number (no * for named)
+    if (pos < length && buf->value(pos) == '.') {
+        pos++;
+        while (pos < length && buf->value(pos) >= '0' && buf->value(pos) <= '9') {
+            pos++;
+        }
+    }
+    
+    // Parse length: h, l, L
+    if (pos < length && _is_printf_length_char(buf->value(pos))) {
+        pos++;
+    }
+    
+    // Parse type: d, i, o, u, x, X, e, E, f, F, g, G, c, r, s, a
+    if (pos < length && _is_printf_type_char(buf->value(pos))) {
+        return Py_BuildValue("(nOn)", pos + 1, Py_False, name_end);
+    }
+    
+    // Invalid placeholder
+    return Py_BuildValue("(nOn)", -1, Py_False, -1);
+}
+
+
+/**
+ * @brief _parse_format_placeholder(self, start_pos)
+ *
+ * Parse a format() style placeholder or escape sequence starting at start_pos.
+ * start_pos must point to { or } character.
+ * 
+ * Returns a tuple: (end_pos, token_type, content_end) where:
+ *   - end_pos: Position after the token (-1 if invalid/unmatched)
+ *   - token_type: 0=invalid, 1=literal_open ({{), 2=literal_close (}}), 3=placeholder
+ *   - content_end: For placeholder - position before closing }, otherwise -1
+ */
+static PyObject* LStr_parse_format_placeholder(LStrObject *self, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {(char*)"start_pos", nullptr};
+    Py_ssize_t start_pos;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "n:_parse_format_placeholder", kwlist, &start_pos)) {
+        return nullptr;
+    }
+
+    if (!self || !self->buffer) {
+        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
+        return nullptr;
+    }
+    Buffer *buf = self->buffer;
+    Py_ssize_t length = (Py_ssize_t)buf->length();
+
+    if (start_pos < 0 || start_pos >= length) {
+        PyErr_SetString(PyExc_ValueError, "start_pos out of range");
+        return nullptr;
+    }
+
+    uint32_t ch = buf->value(start_pos);
+    
+    if (ch == '{') {
+        // Check for {{ escape
+        if (start_pos + 1 < length && buf->value(start_pos + 1) == '{') {
+            // Literal { escape sequence
+            return Py_BuildValue("(nii)", start_pos + 2, 1, -1);
+        }
+        
+        // Find matching } with nesting support
+        Py_ssize_t pos = start_pos + 1;
+        int depth = 1;
+        
+        while (pos < length && depth > 0) {
+            uint32_t c = buf->value(pos);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
+            pos++;
+        }
+        
+        if (depth == 0) {
+            // Found complete placeholder: {content}
+            // content_end is position before closing }
+            return Py_BuildValue("(nii)", pos, 3, pos - 1);
+        } else {
+            // Unclosed brace - invalid
+            return Py_BuildValue("(nii)", -1, 0, -1);
+        }
+    } else if (ch == '}') {
+        // Check for }} escape
+        if (start_pos + 1 < length && buf->value(start_pos + 1) == '}') {
+            // Literal } escape sequence
+            return Py_BuildValue("(nii)", start_pos + 2, 2, -1);
+        } else {
+            // Unmatched } - invalid (caller should skip it)
+            return Py_BuildValue("(nii)", start_pos + 1, 0, -1);
+        }
+    } else {
+        PyErr_SetString(PyExc_ValueError, "start_pos must point to { or }");
+        return nullptr;
+    }
+}
