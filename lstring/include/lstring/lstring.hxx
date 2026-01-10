@@ -49,6 +49,8 @@ inline bool char_is(uint32_t ch, uint32_t charclass) {
            ((charclass & CHAR_PRINTABLE) && Py_UNICODE_ISPRINTABLE(ch));
 }
 
+class CharSet;
+
 /**
  * @brief Abstract Buffer base class
  *
@@ -114,8 +116,8 @@ public:
 
     virtual Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const = 0;
     virtual Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const = 0;
-    virtual Py_ssize_t findcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset, bool invert = false) const;
-    virtual Py_ssize_t rfindcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset, bool invert = false) const;
+    virtual Py_ssize_t findcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert = false) const;
+    virtual Py_ssize_t rfindcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert = false) const;
     virtual Py_ssize_t findcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert = false) const;
     virtual Py_ssize_t rfindcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert = false) const;
     virtual Py_ssize_t findcc(Py_ssize_t start, Py_ssize_t end, uint32_t class_mask, bool invert = false) const;

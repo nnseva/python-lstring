@@ -1,5 +1,6 @@
 #include "lstring/lstring.hxx"
 #include "_lstring.hxx"
+#include "charset.hxx"
 
 Buffer* Buffer::optimize() {
     if (LStr_optimize_threshold <= 0) return nullptr;
@@ -14,23 +15,14 @@ bool Buffer::is_str() const {
     return false;
 }
 
-Py_ssize_t Buffer::findcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset, bool invert) const {
+Py_ssize_t Buffer::findcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert) const {
     if (start < 0) start = 0;
     Py_ssize_t len = length();
     if (end > len) end = len;
     if (start >= end) return -1;
-    if (!charset || charset->length() == 0) return invert ? (start < end ? start : -1) : -1;
-
-    Py_ssize_t charset_len = charset->length();
     for (Py_ssize_t i = start; i < end; ++i) {
         uint32_t ch = value(i);
-        bool found = false;
-        for (Py_ssize_t j = 0; j < charset_len; ++j) {
-            if (ch == charset->value(j)) {
-                found = true;
-                break;
-            }
-        }
+        bool found = charset.is_in(ch);
         if (found != invert) {
             return i;
         }
@@ -38,23 +30,14 @@ Py_ssize_t Buffer::findcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charse
     return -1;
 }
 
-Py_ssize_t Buffer::rfindcs(Py_ssize_t start, Py_ssize_t end, const Buffer* charset, bool invert) const {
+Py_ssize_t Buffer::rfindcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert) const {
     if (start < 0) start = 0;
     Py_ssize_t len = length();
     if (end > len) end = len;
     if (start >= end) return -1;
-    if (!charset || charset->length() == 0) return invert ? (end > start ? end - 1 : -1) : -1;
-
-    Py_ssize_t charset_len = charset->length();
     for (Py_ssize_t i = end - 1; i >= start; --i) {
         uint32_t ch = value(i);
-        bool found = false;
-        for (Py_ssize_t j = 0; j < charset_len; ++j) {
-            if (ch == charset->value(j)) {
-                found = true;
-                break;
-            }
-        }
+        bool found = charset.is_in(ch);
         if (found != invert) {
             return i;
         }

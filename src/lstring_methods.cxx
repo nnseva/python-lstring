@@ -4,10 +4,57 @@
  */
 
 #include <Python.h>
+#include <cstring>
 #include "lstring_utils.hxx"
 #include "lstring/lstring.hxx"
+#include "charset.hxx"
 #include "str_buffer.hxx"
 #include "tptr.hxx"
+
+static int get_charset_unicode(LStrObject *self, PyObject *charset_obj, cppy::ptr &out_unicode) {
+    out_unicode = cppy::ptr();
+
+    if (PyUnicode_Check(charset_obj)) {
+        out_unicode = cppy::ptr(charset_obj, /*incref=*/true);
+        return 0;
+    }
+
+    // Check if charset is an L instance (including subclasses)
+    // Find the base _lstring.L type by walking up from self's type
+    PyTypeObject *type_self = Py_TYPE(self);
+    PyTypeObject *base_type = type_self;
+    while (base_type->tp_base != nullptr &&
+           strcmp(base_type->tp_name, "_lstring.L") != 0) {
+        base_type = base_type->tp_base;
+    }
+
+    if (PyObject_IsInstance(charset_obj, (PyObject*)base_type) == 1) {
+        LStrObject *charset_lstr = (LStrObject*)charset_obj;
+        if (!charset_lstr->buffer) {
+            PyErr_SetString(PyExc_RuntimeError, "charset L has no buffer");
+            return -1;
+        }
+
+        // Fast-path: avoid materializing if charset is already a str buffer.
+        if (charset_lstr->buffer->is_str()) {
+            PyObject *u = ((StrBuffer*)charset_lstr->buffer)->get_str();
+            out_unicode = cppy::ptr(u, /*incref=*/true);
+            return 0;
+        }
+
+        cppy::ptr u(PyObject_Str(charset_obj));
+        if (!u) return -1;
+        if (!PyUnicode_Check(u.get())) {
+            PyErr_SetString(PyExc_TypeError, "charset __str__ did not return str");
+            return -1;
+        }
+        out_unicode = u;
+        return 0;
+    }
+
+    PyErr_SetString(PyExc_TypeError, "charset must be str or L instance");
+    return -1;
+}
 
 static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
 static PyObject* LStr_optimize(LStrObject *self, PyObject *Py_UNUSED(ignored));
@@ -545,27 +592,10 @@ static PyObject* LStr_findcs(LStrObject *self, PyObject *args, PyObject *kwds) {
     Buffer *buf = self->buffer;
     Py_ssize_t buf_len = (Py_ssize_t)buf->length();
 
-    // Check if charset is an L instance (including subclasses)
-    // Find the base _lstring.L type by walking up from self's type
-    PyTypeObject *type_self = Py_TYPE(self);
-    PyTypeObject *base_type = type_self;
-    while (base_type->tp_base != nullptr && 
-           strcmp(base_type->tp_name, "_lstring.L") != 0) {
-        base_type = base_type->tp_base;
-    }
-    
-    // Check if charset_obj is also an instance of the base L type
-    if (PyObject_IsInstance(charset_obj, (PyObject*)base_type) != 1) {
-        PyErr_SetString(PyExc_TypeError, "charset must be an L instance");
+    cppy::ptr charset_u;
+    if (get_charset_unicode(self, charset_obj, charset_u) < 0) {
         return nullptr;
     }
-    
-    LStrObject *charset_lstr = (LStrObject*)charset_obj;
-    if (!charset_lstr->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "charset L has no buffer");
-        return nullptr;
-    }
-    Buffer *charset = charset_lstr->buffer;
 
     // Parse start/end
     Py_ssize_t start;
@@ -600,8 +630,35 @@ static PyObject* LStr_findcs(LStrObject *self, PyObject *args, PyObject *kwds) {
     if (end > buf_len) end = buf_len;
     if (start >= end) return PyLong_FromLong(-1);
 
-    Py_ssize_t res = buf->findcs(start, end, charset, invert != 0);
-    return PyLong_FromSsize_t(res);
+    try {
+        if (PyUnicode_READY(charset_u.get()) < 0) {
+            return nullptr;
+        }
+        const Py_ssize_t charset_len = PyUnicode_GET_LENGTH(charset_u.get());
+        if (charset_len <= 0) {
+            FullCharSet empty;
+            Py_ssize_t res = buf->findcs(start, end, empty, invert != 0);
+            return PyLong_FromSsize_t(res);
+        }
+
+        const int kind = PyUnicode_KIND(charset_u.get());
+        const void *data = PyUnicode_DATA(charset_u.get());
+        Py_ssize_t res;
+        if (kind == PyUnicode_1BYTE_KIND) {
+            ByteCharSet cs((const Py_UCS1*)data, charset_len);
+            res = buf->findcs(start, end, cs, invert != 0);
+        } else if (kind == PyUnicode_2BYTE_KIND) {
+            FullCharSet cs((const Py_UCS2*)data, charset_len);
+            res = buf->findcs(start, end, cs, invert != 0);
+        } else {
+            FullCharSet cs((const Py_UCS4*)data, charset_len);
+            res = buf->findcs(start, end, cs, invert != 0);
+        }
+        return PyLong_FromSsize_t(res);
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    }
 }
 
 
@@ -630,27 +687,10 @@ static PyObject* LStr_rfindcs(LStrObject *self, PyObject *args, PyObject *kwds) 
     Buffer *buf = self->buffer;
     Py_ssize_t buf_len = (Py_ssize_t)buf->length();
 
-    // Check if charset is an L instance (including subclasses)
-    // Find the base _lstring.L type by walking up from self's type
-    PyTypeObject *type_self = Py_TYPE(self);
-    PyTypeObject *base_type = type_self;
-    while (base_type->tp_base != nullptr && 
-           strcmp(base_type->tp_name, "_lstring.L") != 0) {
-        base_type = base_type->tp_base;
-    }
-    
-    // Check if charset_obj is also an instance of the base L type
-    if (PyObject_IsInstance(charset_obj, (PyObject*)base_type) != 1) {
-        PyErr_SetString(PyExc_TypeError, "charset must be an L instance");
+    cppy::ptr charset_u;
+    if (get_charset_unicode(self, charset_obj, charset_u) < 0) {
         return nullptr;
     }
-    
-    LStrObject *charset_lstr = (LStrObject*)charset_obj;
-    if (!charset_lstr->buffer) {
-        PyErr_SetString(PyExc_RuntimeError, "charset L has no buffer");
-        return nullptr;
-    }
-    Buffer *charset = charset_lstr->buffer;
 
     // Parse start/end
     Py_ssize_t start;
@@ -685,8 +725,35 @@ static PyObject* LStr_rfindcs(LStrObject *self, PyObject *args, PyObject *kwds) 
     if (end > buf_len) end = buf_len;
     if (start >= end) return PyLong_FromLong(-1);
 
-    Py_ssize_t res = buf->rfindcs(start, end, charset, invert != 0);
-    return PyLong_FromSsize_t(res);
+    try {
+        if (PyUnicode_READY(charset_u.get()) < 0) {
+            return nullptr;
+        }
+        const Py_ssize_t charset_len = PyUnicode_GET_LENGTH(charset_u.get());
+        if (charset_len <= 0) {
+            FullCharSet empty;
+            Py_ssize_t res = buf->rfindcs(start, end, empty, invert != 0);
+            return PyLong_FromSsize_t(res);
+        }
+
+        const int kind = PyUnicode_KIND(charset_u.get());
+        const void *data = PyUnicode_DATA(charset_u.get());
+        Py_ssize_t res;
+        if (kind == PyUnicode_1BYTE_KIND) {
+            ByteCharSet cs((const Py_UCS1*)data, charset_len);
+            res = buf->rfindcs(start, end, cs, invert != 0);
+        } else if (kind == PyUnicode_2BYTE_KIND) {
+            FullCharSet cs((const Py_UCS2*)data, charset_len);
+            res = buf->rfindcs(start, end, cs, invert != 0);
+        } else {
+            FullCharSet cs((const Py_UCS4*)data, charset_len);
+            res = buf->rfindcs(start, end, cs, invert != 0);
+        }
+        return PyLong_FromSsize_t(res);
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    }
 }
 
 

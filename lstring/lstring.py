@@ -530,10 +530,9 @@ class L(_lstring.L):
             >>> L('hello world').findcs('aeiou', invert=True)
             0
         """
-        # Convert charset to L
-        if isinstance(charset, str):
-            charset = L(charset)
-        elif not isinstance(charset, _lstring.L):
+        # Prefer passing str directly to the C extension.
+        # For non-str, non-L inputs, attempt to treat as an iterable.
+        if not isinstance(charset, (str, _lstring.L)):
             # Try to treat as iterable and join into a string
             try:
                 iter(charset)
@@ -570,10 +569,9 @@ class L(_lstring.L):
             >>> L('hello world').rfindcs('aeiou', invert=True)
             10
         """
-        # Convert charset to L
-        if isinstance(charset, str):
-            charset = L(charset)
-        elif not isinstance(charset, _lstring.L):
+        # Prefer passing str directly to the C extension.
+        # For non-str, non-L inputs, attempt to treat as an iterable.
+        if not isinstance(charset, (str, _lstring.L)):
             # Try to treat as iterable and join into a string
             try:
                 iter(charset)
