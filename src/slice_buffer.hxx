@@ -132,35 +132,71 @@ public:
     }
     
     Py_ssize_t findc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
-        Py_ssize_t len = length();
-        if (len <= 0) return -1;
-        if (start < 0) start = 0;
-        if (end < 0) end = 0;
-        if (start > len) return -1;
-        if (end > len) end = len;
-        if (start >= end) return -1;
-
-        // Map slice-relative range [start, end) to base buffer range [bstart, bend)
-        Py_ssize_t bstart = start_index + start;
-        Py_ssize_t bend = start_index + end;
-        Py_ssize_t pos = lstr_obj->buffer->findc(bstart, bend, ch);
-        if (pos == -1) return -1;
-        // convert base index back to slice-relative index
-        return pos - start_index;
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->findc(bstart, bend, ch);
+        });
     }
 
     Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
-        Py_ssize_t len = length();
-        if (len <= 0) return -1;
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->rfindc(bstart, bend, ch);
+        });
+    }
+
+    Py_ssize_t findcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert) const override {
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->findcr(bstart, bend, startcp, endcp, invert);
+        });
+    }
+
+    Py_ssize_t rfindcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert) const override {
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->rfindcr(bstart, bend, startcp, endcp, invert);
+        });
+    }
+
+    Py_ssize_t findcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert = false) const override {
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->findcs(bstart, bend, charset, invert);
+        });
+    }
+
+    Py_ssize_t rfindcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert = false) const override {
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->rfindcs(bstart, bend, charset, invert);
+        });
+    }
+
+    Py_ssize_t findcc(Py_ssize_t start, Py_ssize_t end, uint32_t class_mask, bool invert = false) const override {
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->findcc(bstart, bend, class_mask, invert);
+        });
+    }
+
+    Py_ssize_t rfindcc(Py_ssize_t start, Py_ssize_t end, uint32_t class_mask, bool invert = false) const override {
+        return delegate_1part(start, end, [&](Py_ssize_t bstart, Py_ssize_t bend) {
+            return lstr_obj->buffer->rfindcc(bstart, bend, class_mask, invert);
+        });
+    }
+
+private:
+    static inline bool normalize_range(Py_ssize_t len, Py_ssize_t& start, Py_ssize_t& end) {
+        if (len <= 0) return false;
         if (start < 0) start = 0;
         if (end < 0) end = 0;
-        if (start > len) return -1;
+        if (start > len) return false;
         if (end > len) end = len;
-        if (start >= end) return -1;
+        return start < end;
+    }
+
+    template <class Fn>
+    inline Py_ssize_t delegate_1part(Py_ssize_t start, Py_ssize_t end, Fn&& fn) const {
+        Py_ssize_t len = length();
+        if (!normalize_range(len, start, end)) return -1;
 
         Py_ssize_t bstart = start_index + start;
         Py_ssize_t bend = start_index + end;
-        Py_ssize_t pos = lstr_obj->buffer->rfindc(bstart, bend, ch);
+        Py_ssize_t pos = fn(bstart, bend);
         if (pos == -1) return -1;
         return pos - start_index;
     }

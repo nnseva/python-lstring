@@ -11,8 +11,9 @@
 #include "str_buffer.hxx"
 #include "tptr.hxx"
 
-static int get_charset_unicode(LStrObject *self, PyObject *charset_obj, cppy::ptr &out_unicode) {
+static int get_charset_source(LStrObject *self, PyObject *charset_obj, cppy::ptr &out_unicode, Buffer* &out_buffer) {
     out_unicode = cppy::ptr();
+    out_buffer = nullptr;
 
     if (PyUnicode_Check(charset_obj)) {
         out_unicode = cppy::ptr(charset_obj, /*incref=*/true);
@@ -42,13 +43,7 @@ static int get_charset_unicode(LStrObject *self, PyObject *charset_obj, cppy::pt
             return 0;
         }
 
-        cppy::ptr u(PyObject_Str(charset_obj));
-        if (!u) return -1;
-        if (!PyUnicode_Check(u.get())) {
-            PyErr_SetString(PyExc_TypeError, "charset __str__ did not return str");
-            return -1;
-        }
-        out_unicode = u;
+        out_buffer = charset_lstr->buffer;
         return 0;
     }
 
@@ -593,7 +588,8 @@ static PyObject* LStr_findcs(LStrObject *self, PyObject *args, PyObject *kwds) {
     Py_ssize_t buf_len = (Py_ssize_t)buf->length();
 
     cppy::ptr charset_u;
-    if (get_charset_unicode(self, charset_obj, charset_u) < 0) {
+    Buffer* charset_buf = nullptr;
+    if (get_charset_source(self, charset_obj, charset_u, charset_buf) < 0) {
         return nullptr;
     }
 
@@ -631,6 +627,19 @@ static PyObject* LStr_findcs(LStrObject *self, PyObject *args, PyObject *kwds) {
     if (start >= end) return PyLong_FromLong(-1);
 
     try {
+        if (charset_buf) {
+            const Py_ssize_t charset_len = charset_buf->length();
+            if (charset_len <= 0) {
+                FullCharSet empty;
+                Py_ssize_t res = buf->findcs(start, end, empty, invert != 0);
+                return PyLong_FromSsize_t(res);
+            }
+
+            FullCharSet cs(*charset_buf);
+            Py_ssize_t res = buf->findcs(start, end, cs, invert != 0);
+            return PyLong_FromSsize_t(res);
+        }
+
         if (PyUnicode_READY(charset_u.get()) < 0) {
             return nullptr;
         }
@@ -688,7 +697,8 @@ static PyObject* LStr_rfindcs(LStrObject *self, PyObject *args, PyObject *kwds) 
     Py_ssize_t buf_len = (Py_ssize_t)buf->length();
 
     cppy::ptr charset_u;
-    if (get_charset_unicode(self, charset_obj, charset_u) < 0) {
+    Buffer* charset_buf = nullptr;
+    if (get_charset_source(self, charset_obj, charset_u, charset_buf) < 0) {
         return nullptr;
     }
 
@@ -726,6 +736,19 @@ static PyObject* LStr_rfindcs(LStrObject *self, PyObject *args, PyObject *kwds) 
     if (start >= end) return PyLong_FromLong(-1);
 
     try {
+        if (charset_buf) {
+            const Py_ssize_t charset_len = charset_buf->length();
+            if (charset_len <= 0) {
+                FullCharSet empty;
+                Py_ssize_t res = buf->rfindcs(start, end, empty, invert != 0);
+                return PyLong_FromSsize_t(res);
+            }
+
+            FullCharSet cs(*charset_buf);
+            Py_ssize_t res = buf->rfindcs(start, end, cs, invert != 0);
+            return PyLong_FromSsize_t(res);
+        }
+
         if (PyUnicode_READY(charset_u.get()) < 0) {
             return nullptr;
         }

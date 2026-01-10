@@ -8,6 +8,8 @@
 #include <stdexcept>
 #include <vector>
 
+#include "lstring/lstring.hxx"
+
 class CharSet {
 public:
     CharSet() = default;
@@ -93,6 +95,10 @@ class FullCharSet final : public CharSet {
 public:
     FullCharSet() = default;
 
+    explicit FullCharSet(const Buffer& buf) {
+        build_from_buffer(buf);
+    }
+
     FullCharSet(const Py_UCS1* charset, Py_ssize_t length) {
         if (!charset && length != 0) {
             throw std::invalid_argument("FullCharSet: charset is null");
@@ -120,6 +126,52 @@ public:
     }
 
 private:
+    void build_from_buffer(const Buffer& buf) {
+        const Py_ssize_t length = buf.length();
+        if (length <= 0) {
+            return;
+        }
+
+        std::vector<Py_UCS1> byte_chars;
+        std::vector<Py_UCS4> high_chars;
+        byte_chars.reserve(static_cast<size_t>(length));
+        high_chars.reserve(static_cast<size_t>(length));
+
+        for (Py_ssize_t i = 0; i < length; ++i) {
+            const Py_UCS4 ch = static_cast<Py_UCS4>(buf.value(i));
+            if (ch <= 0xFF) {
+                byte_chars.push_back(static_cast<Py_UCS1>(ch));
+            } else {
+                high_chars.push_back(ch);
+            }
+        }
+
+        if (!byte_chars.empty()) {
+            sets_.push_back(std::make_unique<ByteCharSet>(byte_chars.data(), static_cast<Py_ssize_t>(byte_chars.size())));
+        }
+
+        if (high_chars.empty()) {
+            return;
+        }
+
+        std::sort(high_chars.begin(), high_chars.end());
+        high_chars.erase(std::unique(high_chars.begin(), high_chars.end()), high_chars.end());
+
+        // Greedy heuristic: start a new range when span would exceed 256.
+        size_t start = 0;
+        while (start < high_chars.size()) {
+            const Py_UCS4 min_char = high_chars[start];
+            size_t end = start + 1;
+            while (end < high_chars.size() && (high_chars[end] - min_char) <= 255) {
+                ++end;
+            }
+            const Py_UCS4 max_char = high_chars[end - 1] + 1;
+            const Py_ssize_t chunk_len = static_cast<Py_ssize_t>(end - start);
+            sets_.push_back(std::make_unique<SingleCharSet>(high_chars.data() + start, chunk_len, min_char, max_char));
+            start = end;
+        }
+    }
+
     template <class T>
     void build_from_unicode_array(const T* charset, Py_ssize_t length) {
         if (!charset && length != 0) {

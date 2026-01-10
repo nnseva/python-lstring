@@ -20,6 +20,57 @@ private:
     tptr<LStrObject> left_obj;
     tptr<LStrObject> right_obj;
 
+    static inline bool normalize_range(Py_ssize_t total, Py_ssize_t& start, Py_ssize_t& end) {
+        if (total <= 0) return false;
+        if (start < 0) start = 0;
+        if (end < 0) end = 0;
+        if (start > total) return false;
+        if (end > total) end = total;
+        return start < end;
+    }
+
+    template <class FnLeft, class FnRight>
+    inline Py_ssize_t find_2part(Py_ssize_t start, Py_ssize_t end, Py_ssize_t llen, FnLeft&& fn_left, FnRight&& fn_right) const {
+        // Search left portion
+        if (start < llen) {
+            Py_ssize_t left_start = start;
+            Py_ssize_t left_end = (end < llen) ? end : llen;
+            Py_ssize_t pos = fn_left(left_start, left_end);
+            if (pos != -1) return pos;
+        }
+
+        // Search right portion
+        if (end > llen) {
+            Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
+            Py_ssize_t right_end = end - llen;
+            Py_ssize_t pos = fn_right(right_start, right_end);
+            if (pos != -1) return pos + llen;
+        }
+
+        return -1;
+    }
+
+    template <class FnLeft, class FnRight>
+    inline Py_ssize_t rfind_2part(Py_ssize_t start, Py_ssize_t end, Py_ssize_t llen, FnLeft&& fn_left, FnRight&& fn_right) const {
+        // Search right portion first
+        if (end > llen) {
+            Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
+            Py_ssize_t right_end = end - llen;
+            Py_ssize_t pos = fn_right(right_start, right_end);
+            if (pos != -1) return pos + llen;
+        }
+
+        // Then search left portion
+        if (start < llen) {
+            Py_ssize_t left_start = start;
+            Py_ssize_t left_end = (end < llen) ? end : llen;
+            Py_ssize_t pos = fn_left(left_start, left_end);
+            if (pos != -1) return pos;
+        }
+
+        return -1;
+    }
+
 public:
     /**
      * @brief Construct a lazy concatenation buffer.
@@ -162,30 +213,14 @@ public:
         Py_ssize_t rlen = right_obj->buffer->length();
         Py_ssize_t total = llen + rlen;
 
-        if (total <= 0) return -1;
-        if (start < 0) start = 0;
-        if (end < 0) end = 0;
-        if (start > total) return -1;
-        if (end > total) end = total;
-        if (start >= end) return -1;
-
-        // Search left portion
-        if (start < llen) {
-            Py_ssize_t left_start = start;
-            Py_ssize_t left_end = (end < llen) ? end : llen;
-            Py_ssize_t pos = left_obj->buffer->findc(left_start, left_end, ch);
-            if (pos != -1) return pos;
-        }
-
-        // Search right portion
-        if (end > llen) {
-            Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
-            Py_ssize_t right_end = end - llen;
-            Py_ssize_t pos = right_obj->buffer->findc(right_start, right_end, ch);
-            if (pos != -1) return pos + llen;
-        }
-
-        return -1;
+        if (!normalize_range(total, start, end)) return -1;
+        return find_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->findc(s, e, ch); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->findc(s, e, ch); }
+        );
     }
 
     Py_ssize_t rfindc(Py_ssize_t start, Py_ssize_t end, uint32_t ch) const override {
@@ -193,30 +228,104 @@ public:
         Py_ssize_t rlen = right_obj->buffer->length();
         Py_ssize_t total = llen + rlen;
 
-        if (total <= 0) return -1;
-        if (start < 0) start = 0;
-        if (end < 0) end = 0;
-        if (start > total) return -1;
-        if (end > total) end = total;
-        if (start >= end) return -1;
+        if (!normalize_range(total, start, end)) return -1;
+        return rfind_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->rfindc(s, e, ch); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->rfindc(s, e, ch); }
+        );
+    }
 
-        // Search right portion first
-        if (end > llen) {
-            Py_ssize_t right_start = (start > llen) ? (start - llen) : 0;
-            Py_ssize_t right_end = end - llen;
-            Py_ssize_t pos = right_obj->buffer->rfindc(right_start, right_end, ch);
-            if (pos != -1) return pos + llen;
-        }
+    Py_ssize_t findcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert = false) const override {
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
+        Py_ssize_t total = llen + rlen;
 
-        // Then search left portion
-        if (start < llen) {
-            Py_ssize_t left_start = start;
-            Py_ssize_t left_end = (end < llen) ? end : llen;
-            Py_ssize_t pos = left_obj->buffer->rfindc(left_start, left_end, ch);
-            if (pos != -1) return pos;
-        }
+        if (!normalize_range(total, start, end)) return -1;
+        return find_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->findcr(s, e, startcp, endcp, invert); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->findcr(s, e, startcp, endcp, invert); }
+        );
+    }
 
-        return -1;
+    Py_ssize_t rfindcr(Py_ssize_t start, Py_ssize_t end, uint32_t startcp, uint32_t endcp, bool invert = false) const override {
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
+        Py_ssize_t total = llen + rlen;
+
+        if (!normalize_range(total, start, end)) return -1;
+        return rfind_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->rfindcr(s, e, startcp, endcp, invert); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->rfindcr(s, e, startcp, endcp, invert); }
+        );
+    }
+
+    Py_ssize_t findcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert = false) const override {
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
+        Py_ssize_t total = llen + rlen;
+
+        if (!normalize_range(total, start, end)) return -1;
+        return find_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->findcs(s, e, charset, invert); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->findcs(s, e, charset, invert); }
+        );
+    }
+
+    Py_ssize_t rfindcs(Py_ssize_t start, Py_ssize_t end, const CharSet& charset, bool invert = false) const override {
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
+        Py_ssize_t total = llen + rlen;
+
+        if (!normalize_range(total, start, end)) return -1;
+        return rfind_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->rfindcs(s, e, charset, invert); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->rfindcs(s, e, charset, invert); }
+        );
+    }
+
+    Py_ssize_t findcc(Py_ssize_t start, Py_ssize_t end, uint32_t class_mask, bool invert = false) const override {
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
+        Py_ssize_t total = llen + rlen;
+
+        if (!normalize_range(total, start, end)) return -1;
+        return find_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->findcc(s, e, class_mask, invert); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->findcc(s, e, class_mask, invert); }
+        );
+    }
+
+    Py_ssize_t rfindcc(Py_ssize_t start, Py_ssize_t end, uint32_t class_mask, bool invert = false) const override {
+        Py_ssize_t llen = left_obj->buffer->length();
+        Py_ssize_t rlen = right_obj->buffer->length();
+        Py_ssize_t total = llen + rlen;
+
+        if (!normalize_range(total, start, end)) return -1;
+        return rfind_2part(
+            start,
+            end,
+            llen,
+            [&](Py_ssize_t s, Py_ssize_t e) { return left_obj->buffer->rfindcc(s, e, class_mask, invert); },
+            [&](Py_ssize_t s, Py_ssize_t e) { return right_obj->buffer->rfindcc(s, e, class_mask, invert); }
+        );
     }
 
     /**
