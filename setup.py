@@ -27,6 +27,7 @@ ext_modules = [
             'lstring/include/lstring/lstring.hxx',
             'src/_lstring.hxx',
             'src/lstring_utils.hxx',
+            'src/charset.hxx',
         ],
         language='c++',
     ),
