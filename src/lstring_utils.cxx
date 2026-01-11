@@ -4,6 +4,7 @@
  */
 
 #include <Python.h>
+#include "_lstring.hxx"
 #include "lstring_utils.hxx"
 #include "tptr.hxx"
 #include <cppy/cppy.h>
@@ -41,20 +42,17 @@ StrBuffer* make_str_buffer(PyObject *py_str) {
  * Uses the process-global `g_optimize_threshold` to decide whether to
  * collapse. If the threshold is inactive (<= 0), this is a no-op.
  */
-void lstr_optimize(LStrObject *self) {
-    if (!self || !self->buffer) return;
-    if (self->buffer->is_str()) return;
+LStrObject *lstr_optimize(LStrObject *self) {
+    if (!self || !self->buffer) return nullptr;
+    if (self->buffer->is_str()) return nullptr;
+    if (LStr_optimize_threshold <= 0) return nullptr;
+    if ((Py_ssize_t)self->buffer->length() >= LStr_optimize_threshold)
+        return nullptr;
+    cppy::ptr py_str(buffer_to_pystr(self->buffer));
+    if (!py_str) return nullptr;
 
-    // Ask the buffer to optimize itself
-    Buffer *new_buf = self->buffer->optimize();
-    if (!new_buf) {
-        // No optimize performed or error occurred
-        return;
-    }
-
-    // Replace buffer with the optimized version
-    delete self->buffer;
-    self->buffer = new_buf;
+    // Then create a StrBuffer from it
+    return (LStrObject *) make_lstr_from_pystr(Py_TYPE(self), py_str.get());
 }
 
 

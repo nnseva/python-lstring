@@ -7,7 +7,7 @@ class StrBuffer;
 class LStrObject;
 class Buffer;
 
-extern void lstr_optimize(LStrObject *self);
+extern LStrObject *lstr_optimize(LStrObject *self);
 extern StrBuffer* make_str_buffer(PyObject *py_str);
 extern PyObject* make_lstr_from_pystr(PyTypeObject *type, PyObject *py_str);
 // Return a new reference to the lstring.L type object by importing the

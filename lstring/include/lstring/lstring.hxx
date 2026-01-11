@@ -144,9 +144,6 @@ public:
     virtual bool isprintable() const;
     virtual bool istitle() const;
 
-    virtual Buffer* collapse();
-    virtual Buffer* optimize();
-
 private:
     Py_hash_t compute_hash() const {
         Py_ssize_t len = length();

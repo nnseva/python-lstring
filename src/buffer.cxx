@@ -2,13 +2,6 @@
 #include "_lstring.hxx"
 #include "charset.hxx"
 
-Buffer* Buffer::optimize() {
-    if (LStr_optimize_threshold <= 0) return nullptr;
-    if ((Py_ssize_t)length() < LStr_optimize_threshold)
-        return collapse();
-    return nullptr;
-}
-
 Buffer::~Buffer() {}
 
 bool Buffer::is_str() const {
@@ -236,8 +229,4 @@ bool Buffer::isprintable() const {
 
 bool Buffer::istitle() const {
     return check_istitle_range(length());
-}
-
-Buffer* Buffer::collapse() {
-    return nullptr;
 }

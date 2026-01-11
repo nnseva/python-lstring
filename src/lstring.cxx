@@ -211,7 +211,10 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
     }
 
     // Try to optimize/collapse small results
-    lstr_optimize(result.get());
+    tptr<LStrObject> optimized(lstr_optimize(result.get()));
+    if (optimized) {
+        return optimized.ptr().release();
+    }
 
     return result.ptr().release();
 }
@@ -295,7 +298,10 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     }
 
     // Try to optimize/collapse small results
-    lstr_optimize(result.get());
+    tptr<LStrObject> optimized(lstr_optimize(result.get()));
+    if (optimized) {
+        return optimized.ptr().release();
+    }
 
     return result.ptr().release();
 }
@@ -354,7 +360,10 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
     }
 
     // Try to optimize/collapse small results
-    lstr_optimize(result.get());
+    tptr<LStrObject> optimized(lstr_optimize(result.get()));
+    if (optimized) {
+        return optimized.ptr().release();
+    }
 
     return result.ptr().release();
 }
