@@ -193,6 +193,11 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
         return make_lstr_from_pystr(type, PyUnicode_FromString(""));
     }
 
+    if(start == 0 && end == length && step == 1) {
+        // Full slice returns self
+        return cppy::incref(self_obj);
+    }
+
     tptr<LStrObject> result(type->tp_alloc(type, 0));
     if (!result) return nullptr;
 
@@ -342,6 +347,14 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
         // Optimize zero repeat to an empty L
         PyTypeObject *type = Py_TYPE(lstr_obj);
         return make_lstr_from_pystr(type, PyUnicode_FromString(""));
+    }
+    if(repeat_count == 1) {
+        // Optimize single repeat to self
+        return cppy::incref(lstr_obj);
+    }
+    if(reinterpret_cast<LStrObject*>(lstr_obj)->buffer->length() == 0) {
+        // Optimize repeat of empty L to an empty L
+        return cppy::incref(lstr_obj);
     }
 
     // Allocate result

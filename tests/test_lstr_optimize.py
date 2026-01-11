@@ -101,7 +101,7 @@ class TestLStrOptimize(unittest.TestCase):
         m = a * 2
         self.assertTrue(self.assert_backed_by_mul(m))
 
-        s0 = self.L("0123")
+        s0 = self.L("0123456789")
         sl = s0[0:4]
         self.assertTrue(self.assert_backed_by_slice(sl))
 
