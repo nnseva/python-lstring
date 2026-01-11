@@ -11,6 +11,15 @@
 #include "str_buffer.hxx"
 #include "tptr.hxx"
 
+static PyTypeObject* get_base_l_type(PyTypeObject *type_self) {
+    PyTypeObject *base_type = type_self;
+    while (base_type->tp_base != nullptr &&
+           strcmp(base_type->tp_name, "_lstring.L") != 0) {
+        base_type = base_type->tp_base;
+    }
+    return base_type;
+}
+
 static int get_charset_source(LStrObject *self, PyObject *charset_obj, cppy::ptr &out_unicode, Buffer* &out_buffer) {
     out_unicode = cppy::ptr();
     out_buffer = nullptr;
@@ -21,13 +30,7 @@ static int get_charset_source(LStrObject *self, PyObject *charset_obj, cppy::ptr
     }
 
     // Check if charset is an L instance (including subclasses)
-    // Find the base _lstring.L type by walking up from self's type
-    PyTypeObject *type_self = Py_TYPE(self);
-    PyTypeObject *base_type = type_self;
-    while (base_type->tp_base != nullptr &&
-           strcmp(base_type->tp_name, "_lstring.L") != 0) {
-        base_type = base_type->tp_base;
-    }
+    PyTypeObject *base_type = get_base_l_type(Py_TYPE(self));
 
     if (PyObject_IsInstance(charset_obj, (PyObject*)base_type) == 1) {
         LStrObject *charset_lstr = (LStrObject*)charset_obj;
@@ -50,9 +53,6 @@ static int get_charset_source(LStrObject *self, PyObject *charset_obj, cppy::ptr
     PyErr_SetString(PyExc_TypeError, "charset must be str or L instance");
     return -1;
 }
-
-static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored));
-static PyObject* LStr_optimize(LStrObject *self, PyObject *Py_UNUSED(ignored));
 static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds);
 static PyObject* LStr_findc(LStrObject *self, PyObject *args, PyObject *kwds);
@@ -87,8 +87,6 @@ static PyObject* LStr_istitle(LStrObject *self, PyObject *Py_UNUSED(ignored));
  * maps a method name to a C function and calling convention.
  */
 PyMethodDef LStr_methods[] = {
-    {"collapse", (PyCFunction)LStr_collapse, METH_NOARGS, "Collapse internal buffer to a contiguous str buffer"},
-    {"optimize", (PyCFunction)LStr_optimize, METH_NOARGS, "Optimize internal buffer based on threshold"},
     {"find", (PyCFunction)LStr_find, METH_VARARGS | METH_KEYWORDS, "Find substring like str.find(sub, start=None, end=None)"},
     {"rfind", (PyCFunction)LStr_rfind, METH_VARARGS | METH_KEYWORDS, "Find last occurrence like str.rfind(sub, start=None, end=None)"},
     {"findc", (PyCFunction)LStr_findc, METH_VARARGS | METH_KEYWORDS, "Find single code point: findc(ch, start=None, end=None)"},
@@ -151,8 +149,7 @@ static PyObject* LStr_find(LStrObject *self, PyObject *args, PyObject *kwds) {
         PyTypeObject *type = Py_TYPE(self);
         sub_owner = tptr<LStrObject>(make_lstr_from_pystr(type, sub_obj));
         if (!sub_owner) return nullptr;
-    } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
-        // assume it's an L-like object
+    } else if (PyObject_IsInstance(sub_obj, (PyObject*)get_base_l_type(Py_TYPE(self))) == 1) {
         LStrObject *lsub = (LStrObject*)sub_obj;
         if (!lsub->buffer) {
             PyErr_SetString(PyExc_RuntimeError, "substring L has no buffer");
@@ -287,7 +284,7 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
         PyTypeObject *type = Py_TYPE(self);
         sub_owner = tptr<LStrObject>(make_lstr_from_pystr(type, sub_obj));
         if (!sub_owner) return nullptr;
-    } else if (PyObject_HasAttrString((PyObject*)Py_TYPE(sub_obj), "collapse")) {
+    } else if (PyObject_IsInstance(sub_obj, (PyObject*)get_base_l_type(Py_TYPE(self))) == 1) {
         LStrObject *lsub = (LStrObject*)sub_obj;
         if (!lsub->buffer) {
             PyErr_SetString(PyExc_RuntimeError, "substring L has no buffer");
@@ -386,39 +383,6 @@ static PyObject* LStr_rfind(LStrObject *self, PyObject *args, PyObject *kwds) {
     }
 
     return PyLong_FromLong(-1);
-}
-
-
-/**
- * @brief Python method wrapper: collapse(self)
- *
- * Exposes the internal `lstr_collapse` helper as a Python-callable
- * method.
- */
-static PyObject* LStr_collapse(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
-    if (!self) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
-        return nullptr;
-    }
-    lstr_collapse(self);
-    if (PyErr_Occurred()) return nullptr;
-    Py_RETURN_NONE;
-}
-
-/**
- * @brief Python method wrapper: optimize(self)
- *
- * Exposes the internal `lstr_optimize` helper as a Python-callable
- * method. Applies threshold-based optimization to the buffer.
- */
-static PyObject* LStr_optimize(LStrObject *self, PyObject *Py_UNUSED(ignored)) {
-    if (!self) {
-        PyErr_SetString(PyExc_RuntimeError, "invalid L object");
-        return nullptr;
-    }
-    lstr_optimize(self);
-    if (PyErr_Occurred()) return nullptr;
-    Py_RETURN_NONE;
 }
 
 

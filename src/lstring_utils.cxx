@@ -36,31 +36,6 @@ StrBuffer* make_str_buffer(PyObject *py_str) {
 
 
 /**
- * @brief Convert any non-StrBuffer into a concrete StrBuffer backed by a
- *        Python str.
- *
- * If the buffer already wraps a Python string, this is a no-op. On error
- * this function propagates the Python exception and leaves the object
- * unchanged.
- */
-void lstr_collapse(LStrObject *self) {
-    if (!self || !self->buffer) return;
-    if (self->buffer->is_str()) return; // already a StrBuffer
-
-    // Ask the buffer to collapse itself
-    Buffer *new_buf = self->buffer->collapse();
-    if (!new_buf) {
-        // No collapse performed or error occurred
-        return;
-    }
-
-    // Replace buffer with the collapsed version
-    delete self->buffer;
-    self->buffer = new_buf;
-}
-
-
-/**
  * @brief Try to collapse small lazy buffers into concrete StrBuffers.
  *
  * Uses the process-global `g_optimize_threshold` to decide whether to
