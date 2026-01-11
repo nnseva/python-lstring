@@ -95,8 +95,7 @@ static PyObject* LStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 
     // Delegate allocation+initialization to helper that constructs an
     // L instance from a Python str.
-    PyObject *obj = make_lstr_from_pystr(type, py_str);
-    return obj;
+    return make_lstr_from_pystr(type, py_str);
 }
 
 /**
@@ -175,19 +174,25 @@ static PyObject* LStr_subscript(PyObject *self_obj, PyObject *key) {
         PyErr_SetString(PyExc_TypeError, "L index type not supported");
         return nullptr;
     }
+
     // Slice
     Py_ssize_t start, end, step;
     if (PySlice_Unpack(key, &start, &end, &step) < 0) {
         return nullptr;  // generate exception set by Unpack
     }
-    PySlice_AdjustIndices(length, &start, &end, step);
-    
+
     if (step == 0) {
         PyErr_SetString(PyExc_ValueError, "slice step cannot be zero");
         return nullptr;
     }
 
     PyTypeObject *type = Py_TYPE(self);
+
+    if (PySlice_AdjustIndices(length, &start, &end, step) == 0) {
+        // Optimize empty slice to an empty L
+        return make_lstr_from_pystr(type, PyUnicode_FromString(""));
+    }
+
     tptr<LStrObject> result(type->tp_alloc(type, 0));
     if (!result) return nullptr;
 
@@ -222,12 +227,6 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     // Allow mixing `L` and Python `str`.
     bool left_is_str = PyUnicode_Check(left);
     bool right_is_str = PyUnicode_Check(right);    
-
-    // Reject str+str
-    if (left_is_str && right_is_str) {
-        PyErr_SetString(PyExc_TypeError, "both operands cannot be Python str");
-        return nullptr;
-    }
 
     // Determine L type and validate operands. If one operand is a Python
     // str, the other must be an L. Otherwise both operands must be compatible
@@ -270,6 +269,15 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
     } else {
         left_owner = tptr<LStrObject>(left, true);
         right_owner = tptr<LStrObject>(right, true);
+    }
+
+    if (left_owner->buffer->length() == 0) {
+        // Left is empty, return right
+        return right_owner.ptr().release();
+    }
+    if (right_owner->buffer->length() == 0) {
+        // Right is empty, return left
+        return left_owner.ptr().release();
     }
 
     // Allocate result object of the L type
@@ -323,6 +331,11 @@ static PyObject* LStr_mul(PyObject *left, PyObject *right) {
         PyErr_SetString(PyExc_RuntimeError,
                         "L repeat count must be non-negative");
         return nullptr;
+    }
+    if(repeat_count == 0) {
+        // Optimize zero repeat to an empty L
+        PyTypeObject *type = Py_TYPE(lstr_obj);
+        return make_lstr_from_pystr(type, PyUnicode_FromString(""));
     }
 
     // Allocate result
