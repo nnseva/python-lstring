@@ -21,6 +21,15 @@ private:
     tptr<LStrObject> lstr_obj;
     Py_ssize_t repeat_count;
 
+    mutable Py_ssize_t cached_len;
+
+public:
+    static constexpr int buffer_class_id = 8;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || Buffer::is_a(class_id);
+    }
+
     template <typename FindFn>
     Py_ssize_t find_2part(Py_ssize_t start, Py_ssize_t end, Py_ssize_t base_len, FindFn&& fn) const {
         Py_ssize_t rep_start = start / base_len;
@@ -82,7 +91,7 @@ public:
      * @throws std::runtime_error if count is negative.
      */
     MulBuffer(PyObject *lstr, Py_ssize_t count)
-        : lstr_obj((LStrObject*)lstr, true), repeat_count(count) 
+        : lstr_obj((LStrObject*)lstr, true), repeat_count(count), cached_len(-1)
     {
         if (repeat_count < 0) {
             throw std::runtime_error("MulBuffer: repeat count must be non-negative");
@@ -100,7 +109,9 @@ public:
      * Returns base_length * repeat_count.
      */
     Py_ssize_t length() const override {
-        return lstr_obj->buffer->length() * repeat_count;
+        if (cached_len != -1) return cached_len;
+        cached_len = lstr_obj->buffer->length() * repeat_count;
+        return cached_len;
     }
 
     /**

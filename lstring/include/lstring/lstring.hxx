@@ -99,8 +99,12 @@ protected:
     Py_hash_t cached_hash;
 
 public:
+    static constexpr int buffer_class_id = 1;
+
     Buffer() : cached_hash(-1) {}
     virtual ~Buffer();
+
+    virtual bool is_a(int class_id) const;
 
     virtual Py_ssize_t length() const = 0;
     virtual int unicode_kind() const = 0;

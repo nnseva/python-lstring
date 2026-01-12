@@ -4,6 +4,10 @@
 
 Buffer::~Buffer() {}
 
+bool Buffer::is_a(int class_id) const {
+    return class_id == buffer_class_id;
+}
+
 bool Buffer::is_str() const {
     return false;
 }

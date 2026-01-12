@@ -10,7 +10,6 @@
 #include "lstring_utils.hxx"
 #include "lstring/lstring.hxx"
 #include "str_buffer.hxx"
-#include "join_buffer.hxx"
 #include "mul_buffer.hxx"
 #include "slice_buffer.hxx"
 #include "tptr.hxx"
@@ -288,19 +287,9 @@ static PyObject* LStr_add(PyObject *left, PyObject *right) {
         return left_owner.ptr().release();
     }
 
-    // Allocate result object of the L type
-    tptr<LStrObject> result(type->tp_alloc(type, 0));
+    // Build a balanced join-tree (immutability preserved: only creates new nodes).
+    tptr<LStrObject> result = concat_balanced(type, left_owner, right_owner);
     if (!result) return nullptr;
-
-    try {
-        result->buffer = new JoinBuffer(left_owner.ptr().get(), right_owner.ptr().get());
-    } catch (const std::exception &e) {
-        PyErr_SetString(PyExc_RuntimeError, e.what());
-        return nullptr;
-    } catch (...) {
-        PyErr_SetString(PyExc_RuntimeError, "JoinBuffer allocation failed");
-        return nullptr;
-    }
 
     // Try to optimize/collapse small results
     tptr<LStrObject> optimized(lstr_optimize(result.get()));

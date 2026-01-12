@@ -19,6 +19,12 @@ protected:
     cppy::ptr py_str;
 
 public:
+    static constexpr int buffer_class_id = 2;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || Buffer::is_a(class_id);
+    }
+
     /**
      * @brief Construct a StrBuffer from a Python Unicode object.
      * @param str A Python unicode object (PyObject*). The constructor
@@ -221,6 +227,12 @@ public:
  */
 class Str8Buffer : public StrBuffer {
 public:
+    static constexpr int buffer_class_id = 3;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || StrBuffer::is_a(class_id);
+    }
+
     /**
      * @brief Construct a Str8Buffer wrapping a Python unicode object.
      * @param str Python unicode object (PyObject*).
@@ -255,6 +267,12 @@ public:
  */
 class Str16Buffer : public StrBuffer {
 public:
+    static constexpr int buffer_class_id = 4;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || StrBuffer::is_a(class_id);
+    }
+
     /**
      * @brief Construct a Str16Buffer wrapping a Python unicode object.
      * @param str Python unicode object (PyObject*).
@@ -289,6 +307,12 @@ public:
  */
 class Str32Buffer : public StrBuffer {
 public:
+    static constexpr int buffer_class_id = 5;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || StrBuffer::is_a(class_id);
+    }
+
     /**
      * @brief Construct a Str32Buffer wrapping a Python unicode object.
      * @param str Python unicode object (PyObject*).

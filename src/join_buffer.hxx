@@ -20,6 +20,9 @@ private:
     tptr<LStrObject> left_obj;
     tptr<LStrObject> right_obj;
 
+    mutable Py_ssize_t cached_len;
+    mutable Py_ssize_t cached_height;
+
     static inline bool normalize_range(Py_ssize_t total, Py_ssize_t& start, Py_ssize_t& end) {
         if (total <= 0) return false;
         if (start < 0) start = 0;
@@ -72,6 +75,20 @@ private:
     }
 
 public:
+    static constexpr int buffer_class_id = 9;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || Buffer::is_a(class_id);
+    }
+
+    PyObject* left() const {
+        return left_obj.ptr().get();
+    }
+
+    PyObject* right() const {
+        return right_obj.ptr().get();
+    }
+
     /**
      * @brief Construct a lazy concatenation buffer.
      *
@@ -83,7 +100,7 @@ public:
      * @param right Right operand (borrowed reference)
      */
     JoinBuffer(PyObject *left, PyObject *right)
-        : left_obj(left, true), right_obj(right, true) {
+        : left_obj(left, true), right_obj(right, true), cached_len(-1), cached_height(-1) {
     }
 
     /**
@@ -99,7 +116,25 @@ public:
      * @return Sum of left->length() and right->length().
      */
     Py_ssize_t length() const override {
-        return left_obj->buffer->length() + right_obj->buffer->length();
+        if (cached_len != -1) return cached_len;
+        cached_len = left_obj->buffer->length() + right_obj->buffer->length();
+        return cached_len;
+    }
+
+    Py_ssize_t height() const {
+        if (cached_height != -1) return cached_height;
+
+        auto child_height = [](const Buffer* buf) -> Py_ssize_t {
+            if (buf && buf->is_a(JoinBuffer::buffer_class_id)) {
+                return static_cast<const JoinBuffer*>(buf)->height();
+            }
+            return 1;
+        };
+
+        Py_ssize_t lh = child_height(left_obj->buffer);
+        Py_ssize_t rh = child_height(right_obj->buffer);
+        cached_height = 1 + (lh > rh ? lh : rh);
+        return cached_height;
     }
 
     /**

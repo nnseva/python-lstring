@@ -12,6 +12,7 @@ ext_modules = [
         name='_lstring',
         sources=[
             'src/lstring.cxx',
+            'src/lstring_concat.cxx',
             'src/lstring_methods.cxx',
             'src/lstring_utils.cxx',
             'src/lstring_module.cxx',

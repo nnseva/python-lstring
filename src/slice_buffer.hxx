@@ -23,8 +23,15 @@ protected:
     Py_ssize_t end_index;
 
     mutable Py_ssize_t cached_kind;
+    mutable Py_ssize_t cached_len;
 
 public:
+    static constexpr int buffer_class_id = 6;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || Buffer::is_a(class_id);
+    }
+
     /**
      * @brief Construct a continuous slice view [start:end) with step == 1.
      *
@@ -33,7 +40,7 @@ public:
      * @param end End index (exclusive) within the base buffer.
      */
     Slice1Buffer(PyObject *lstr, Py_ssize_t start, Py_ssize_t end)
-        : lstr_obj((LStrObject*)lstr, true), start_index(start), end_index(end), cached_kind(-1) {
+        : lstr_obj((LStrObject*)lstr, true), start_index(start), end_index(end), cached_kind(-1), cached_len(-1) {
     }
 
     /**
@@ -47,7 +54,9 @@ public:
      * Returns max(0, end - start).
      */
     Py_ssize_t length() const override {
-        return end_index > start_index ? (end_index - start_index) : 0;
+        if (cached_len != -1) return cached_len;
+        cached_len = end_index > start_index ? (end_index - start_index) : 0;
+        return cached_len;
     }
 
     /**
@@ -229,6 +238,12 @@ protected:
     }
 
 public:
+    static constexpr int buffer_class_id = 7;
+
+    bool is_a(int class_id) const override {
+        return class_id == buffer_class_id || Slice1Buffer::is_a(class_id);
+    }
+
     /**
      * @brief Construct a slice with arbitrary step.
      *
