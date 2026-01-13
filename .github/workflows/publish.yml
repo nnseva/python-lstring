@@ -134,8 +134,61 @@ jobs:
                    python -m pip install -U . && \
                    python -X dev -m unittest discover -v"
 
-  build-linux:
-    name: Build Linux wheels
+  build-linux-x86_64:
+    name: Build Linux wheels (x86_64, manylinux+musllinux)
+    needs: [test, test-alpine-arm64]
+    runs-on: ubuntu-latest
+
+    # Build only on version tags like v0.0.1
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U build cibuildwheel
+
+      - name: Build sdist
+        run: |
+          python -m build -s
+
+      - name: Build Linux wheels (x86_64)
+        env:
+          CIBW_BUILD: "cp310-manylinux_* cp311-manylinux_* cp312-manylinux_* cp313-manylinux_* cp314-manylinux_* cp310-musllinux_* cp311-musllinux_* cp312-musllinux_* cp313-musllinux_* cp314-musllinux_*"
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_TEST_COMMAND: "python -m unittest discover -v -s {project}/tests"
+        run: |
+          python -m cibuildwheel --output-dir wheelhouse
+          mkdir -p dist
+          cp -v wheelhouse/*.whl dist/
+
+      - name: Upload dist (Linux x86_64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux-x86_64
+          path: dist/*.whl
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  build-linux-aarch64-manylinux:
+    name: Build Linux wheels (aarch64, manylinux)
     needs: [test, test-alpine-arm64]
     runs-on: ubuntu-latest
 
@@ -164,33 +217,67 @@ jobs:
       - name: Install build tooling
         run: |
           python -m pip install -U pip
-          python -m pip install -U build cibuildwheel
+          python -m pip install -U cibuildwheel
 
-      - name: Build sdist
-        run: |
-          python -m build -s
-
-      - name: Build Linux wheels
+      - name: Build Linux wheels (aarch64 manylinux)
         env:
-          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
-          CIBW_ARCHS_LINUX: "x86_64 aarch64"
+          CIBW_BUILD: "cp310-manylinux_* cp311-manylinux_* cp312-manylinux_* cp313-manylinux_* cp314-manylinux_*"
+          CIBW_ARCHS_LINUX: "aarch64"
           CIBW_TEST_COMMAND: "python -m unittest discover -v -s {project}/tests"
         run: |
-          python -m cibuildwheel --output-dir wheelhouse
-          mkdir -p dist
-          cp -v wheelhouse/*.whl dist/
+          python -m cibuildwheel --output-dir dist
 
-      - name: Upload dist (Linux)
+      - name: Upload dist (Linux aarch64 manylinux)
         uses: actions/upload-artifact@v4
         with:
-          name: dist-linux
-          path: dist/*
+          name: dist-linux-aarch64-manylinux
+          path: dist/*.whl
 
-      - name: Upload sdist
+  build-linux-aarch64-musllinux:
+    name: Build Linux wheels (aarch64, musllinux)
+    needs: [test, test-alpine-arm64]
+    runs-on: ubuntu-latest
+
+    # Build only on version tags like v0.0.1
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU (for linux/aarch64 wheels)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U cibuildwheel
+
+      - name: Build Linux wheels (aarch64 musllinux)
+        env:
+          CIBW_BUILD: "cp310-musllinux_* cp311-musllinux_* cp312-musllinux_* cp313-musllinux_* cp314-musllinux_*"
+          CIBW_ARCHS_LINUX: "aarch64"
+          CIBW_TEST_COMMAND: "python -m unittest discover -v -s {project}/tests"
+        run: |
+          python -m cibuildwheel --output-dir dist
+
+      - name: Upload dist (Linux aarch64 musllinux)
         uses: actions/upload-artifact@v4
         with:
-          name: sdist
-          path: dist/*.tar.gz
+          name: dist-linux-aarch64-musllinux
+          path: dist/*.whl
 
   build-macos:
     name: Build macOS wheels (${{ matrix.runner }}, ${{ matrix.arch }})
@@ -284,7 +371,8 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [build-linux, build-macos, build-windows]
+    needs:
+      [build-linux-x86_64, build-linux-aarch64-manylinux, build-linux-aarch64-musllinux, build-macos, build-windows]
     runs-on: ubuntu-latest
 
     # Publish only on version tags like v0.0.1

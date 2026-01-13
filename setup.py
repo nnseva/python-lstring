@@ -82,6 +82,8 @@ setup(
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: C++',
         'Operating System :: POSIX :: Linux',
+        'Operating System :: MacOS :: MacOS X',
+        'Operating System :: Microsoft :: Windows',
     ],
     packages=['lstring'],
     package_data={'lstring': ['include/lstring/lstring.hxx']},
