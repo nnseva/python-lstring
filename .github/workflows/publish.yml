@@ -1,0 +1,85 @@
+name: Publish
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    # Only publish after CI succeeded.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+
+    # Matches the PyPI Trusted Publisher configuration.
+    environment: release
+
+    # Required for PyPI Trusted Publishing (OIDC).
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Decide whether to publish (requires v* tag)
+        id: should_publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags=$(git tag --points-at HEAD || true)
+          echo "Tags on HEAD:"$'\n'"$tags"
+          if echo "$tags" | grep -Eq '^v[0-9]'; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop (not a release tag)
+        if: steps.should_publish.outputs.publish != 'true'
+        shell: bash
+        run: |
+          echo "Not publishing: HEAD is not tagged with v*."
+
+      - name: Set up Python
+        if: steps.should_publish.outputs.publish == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        if: steps.should_publish.outputs.publish == 'true'
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U build cibuildwheel
+
+      - name: Build sdist
+        if: steps.should_publish.outputs.publish == 'true'
+        run: |
+          python -m build -s
+
+      - name: Build manylinux wheels
+        if: steps.should_publish.outputs.publish == 'true'
+        env:
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
+          CIBW_SKIP: "pp* *-musllinux_*"
+          CIBW_ARCHS_LINUX: "x86_64"
+        run: |
+          python -m cibuildwheel --output-dir wheelhouse
+          mkdir -p dist
+          cp -v wheelhouse/*.whl dist/
+
+      - name: Publish to PyPI (Trusted Publishing)
+        if: steps.should_publish.outputs.publish == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true

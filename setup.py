@@ -1,11 +1,5 @@
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-import os
-import shutil
-import urllib.request
-import tarfile
-import tempfile
-import subprocess
 
 ext_modules = [
     Extension(
@@ -50,9 +44,24 @@ class BuildExt(build_ext):
 
 setup(
     name='lstring',
-    version='0.0.1',
-    python_requires='>=3.5',
+    use_scm_version=True,
+    python_requires='>=3.10',
     # build-time requirements are declared in pyproject.toml
+    description='True Python lazy string (rope-like) implemented as a C++ extension',
+    long_description=open('README.md', encoding='utf-8').read(),
+    long_description_content_type='text/markdown',
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14',
+        'Programming Language :: Python :: 3.15',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: C++',
+        'Operating System :: POSIX :: Linux',
+    ],
     packages=['lstring'],
     package_data={'lstring': ['include/lstring/lstring.hxx']},
     ext_modules=ext_modules,

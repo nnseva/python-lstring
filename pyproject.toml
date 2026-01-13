@@ -1,3 +1,17 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "cppy"]
+requires = ["setuptools>=61.0", "wheel", "cppy", "setuptools-scm[toml]>=8"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# Tags like v0.0.1 or 0.0.1 are accepted.
+tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
+
+# On an exact tag: 0.0.1
+# Ahead of tag:    0.0.2.devN
+version_scheme = "guess-next-dev"
+
+# Add a local version segment for uniqueness in dev builds (PEP 440), e.g. +g<hash>.d<date>
+local_scheme = "node-and-date"
+
+# Optional: write a version file at build time (useful for installations without .git).
+write_to = "lstring/_version.py"
