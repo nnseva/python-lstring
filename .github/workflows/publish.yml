@@ -42,53 +42,33 @@ jobs:
         run: |
           python -X dev -m unittest discover -v
 
-  test-alpine:
-    name: Tests Alpine (py${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+  test-macos:
+    name: Tests macOS (py${{ matrix.python-version }})
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
-    # Run inside an Alpine (musl) container for each CPython version.
-    container:
-      image: python:${{ matrix.python-version }}-alpine
-
     steps:
-      - name: Install git (required for setuptools-scm)
-        shell: sh
-        run: |
-          set -eu
-          apk add --no-cache git
-
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          fetch-depth: 0
-          fetch-tags: true
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install system build dependencies
-        shell: sh
+      - name: Install build dependencies
         run: |
-          set -eu
-          apk add --no-cache build-base linux-headers
-
-      - name: Install Python build dependencies
-        shell: sh
-        run: |
-          set -eu
-          python -m pip install -U pip setuptools wheel tox
+          python -m pip install --upgrade pip setuptools wheel tox
 
       - name: Install package
-        shell: sh
         run: |
-          set -eu
-          python -m pip install -U .
+          python -m pip install --upgrade .
 
       - name: Run unit tests (verbose)
-        shell: sh
         run: |
-          set -eu
           python -X dev -m unittest discover -v
 
   test-alpine-arm64:
@@ -125,20 +105,16 @@ jobs:
                    python -m pip install -U . && \
                    python -X dev -m unittest discover -v"
 
-  publish:
-    name: Publish to PyPI
-    needs: [test, test-alpine, test-alpine-arm64]
+  build-linux:
+    name: Build Linux wheels
+    needs: [test, test-alpine-arm64]
     runs-on: ubuntu-latest
 
-    # Publish only on version tags like v0.0.1
+    # Build only on version tags like v0.0.1
     if: startsWith(github.ref, 'refs/tags/v')
-
-    # Matches the PyPI Trusted Publisher configuration.
-    environment: release
 
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - name: Checkout
@@ -165,7 +141,7 @@ jobs:
         run: |
           python -m build -s
 
-      - name: Build manylinux/musllinux x86_64/aarch64 wheels
+      - name: Build Linux wheels
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
@@ -175,8 +151,97 @@ jobs:
           mkdir -p dist
           cp -v wheelhouse/*.whl dist/
 
+      - name: Upload dist (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: dist/*
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  build-macos:
+    name: Build macOS wheels (${{ matrix.runner }}, ${{ matrix.arch }})
+    needs: [test-macos]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+          - runner: macos-15
+            arch: arm64
+
+    # Build only on version tags like v0.0.1
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U cibuildwheel
+
+      - name: Build macOS wheels
+        env:
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
+          CIBW_ARCHS_MACOS: "${{ matrix.arch }}"
+          CIBW_TEST_COMMAND: "python -m unittest discover -v -s {project}/tests"
+        run: |
+          python -m cibuildwheel --output-dir dist
+
+      - name: Upload dist (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos-${{ matrix.arch }}
+          path: dist/*.whl
+
+  publish:
+    name: Publish to PyPI
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+
+    # Publish only on version tags like v0.0.1
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    # Matches the PyPI Trusted Publisher configuration.
+    environment: release
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p upload
+          find dist -type f \( -name '*.whl' -o -name '*.tar.gz' \) -exec cp -v '{}' upload/ \;
+
       - name: Publish to PyPI (Trusted Publishing)
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: dist
+          packages-dir: upload
           skip-existing: true

@@ -1,5 +1,6 @@
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
+import sys
 
 ext_modules = [
     Extension(
@@ -39,6 +40,26 @@ class BuildExt(build_ext):
             # cppy.get_include() collect the path of the header files
             ext.include_dirs.insert(0, cppy.get_include())
             ext.include_dirs.insert(0, 'lstring/include')
+
+            extra_compile_args = list(getattr(ext, 'extra_compile_args', []) or [])
+            extra_link_args = list(getattr(ext, 'extra_link_args', []) or [])
+
+            if ct == 'unix':
+                # clang on macOS may default to an older C++ dialect; this project requires
+                # at least C++11 (constexpr, override, make_unique, etc).
+                if '-std=c++17' not in extra_compile_args:
+                    extra_compile_args.append('-std=c++17')
+                if sys.platform == 'darwin':
+                    if '-stdlib=libc++' not in extra_compile_args:
+                        extra_compile_args.append('-stdlib=libc++')
+                    if '-stdlib=libc++' not in extra_link_args:
+                        extra_link_args.append('-stdlib=libc++')
+            elif ct == 'msvc':
+                if '/std:c++17' not in extra_compile_args:
+                    extra_compile_args.append('/std:c++17')
+
+            ext.extra_compile_args = extra_compile_args
+            ext.extra_link_args = extra_link_args
 
         build_ext.build_extensions(self)
 
