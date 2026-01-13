@@ -9,6 +9,10 @@ This file is intended primarily for AI agents and automated tooling that need to
 - **Main exported type:** `lstring.L` (lazy/rope-like Unicode string)
 - **Core idea:** Most string operations build a *lazy* representation (a small tree of buffers). Actual materialization to a real `str` happens only when required.
 
+## AI-assisted development note
+
+This repository is developed and maintained with the help of AI-assisted tooling. A short disclosure and an up-to-date list of models/tools used is maintained in the project README.
+
 ## 1) When to use `L` in user projects
 
 Use `L` when the workload creates many intermediate strings (templating, pipelines, slicing/concatenation-heavy code), especially when:

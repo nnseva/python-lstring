@@ -1,16 +1,28 @@
-[![CI](https://github.com/nnseva/python-lstring/actions/workflows/ci.yml/badge.svg)](https://github.com/nnseva/python-lstring/actions/workflows/ci.yml)
+[![CI](https://github.com/nnseva/python-lstring/actions/workflows/publish.yml/badge.svg)](https://github.com/nnseva/python-lstring/actions/workflows/publish.yml)
 
 # True Python Lazy String
-
-## AI/Agent-oriented documentation
-
-If you are an AI agent (or using AI-assisted tooling) and want a repository map, invariants, and extension/optimization guidance, see [AI_CONTEXT.md](AI_CONTEXT.md).
 
 ## Package Description
 
 This package provides a true lazy string type for Python, designed to efficiently represent and manipulate Unicode strings without unnecessary copying or eager materialization. Unlike standard Python strings, which are always represented as separate contiguous memory regions, the lazy string type allows operations such as slicing, joining, and formatting to be composed and deferred until the stringified result is actually needed. This approach can dramatically reduce memory usage and can sometimes improve performance in workloads involving large or complex string manipulations.
 
 The core of the package is implemented as a C++ extension for maximum speed, with a clean Python interface. It is especially useful in scenarios where many intermediate string objects would otherwise be created, such as text processing pipelines, or templating engines. The package aims to be a drop-in enhancement for advanced users who need both the expressiveness of Python and the efficiency of lazy evaluation for string data.
+
+## AI/Agent-oriented documentation
+
+If you are an AI agent (or using AI-assisted tooling) and want a repository map, invariants, and extension/optimization guidance, see [AI_CONTEXT.md](https://github.com/nnseva/python-lstring/blob/master/AI_CONTEXT.md).
+
+## AI-assisted development
+
+This project is developed and maintained with the help of AI-assisted tooling. AI suggestions may be used for code, tests, documentation, and refactoring, but changes are reviewed and accepted by the maintainer(s).
+
+Models/tools known to have been used during development (update as needed).
+
+- Anthropic — Claude Sonnet 4.5
+- GitHub Copilot — GPT-5.2
+- OpenAI — GPT-4.1
+- OpenAI — GPT-5 mini
+- Microsoft Copilot — (model varies)
 
 ## Installation
 
