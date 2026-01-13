@@ -91,9 +91,43 @@ jobs:
           set -eu
           python -X dev -m unittest discover -v
 
+  test-alpine-arm64:
+    name: Tests Alpine ARM64 (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up QEMU (for linux/arm64)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Run tests in Alpine (linux/arm64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "$GITHUB_WORKSPACE:/project" \
+            -w /project \
+            python:${{ matrix.python-version }}-alpine \
+            sh -lc "apk add --no-cache git build-base linux-headers && \
+                   python -m pip install -U pip setuptools wheel tox && \
+                   python -m pip install -U . && \
+                   python -X dev -m unittest discover -v"
+
   publish:
     name: Publish to PyPI
-    needs: [test, test-alpine]
+    needs: [test, test-alpine, test-alpine-arm64]
     runs-on: ubuntu-latest
 
     # Publish only on version tags like v0.0.1
@@ -112,6 +146,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up QEMU (for linux/aarch64 wheels)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -126,10 +165,10 @@ jobs:
         run: |
           python -m build -s
 
-      - name: Build manylinux wheels
+      - name: Build manylinux/musllinux x86_64/aarch64 wheels
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
-          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_TEST_COMMAND: "python -m unittest discover -v -s {project}/tests"
         run: |
           python -m cibuildwheel --output-dir wheelhouse
