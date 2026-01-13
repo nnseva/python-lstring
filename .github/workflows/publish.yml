@@ -42,9 +42,58 @@ jobs:
         run: |
           python -X dev -m unittest discover -v
 
+  test-alpine:
+    name: Tests Alpine (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    # Run inside an Alpine (musl) container for each CPython version.
+    container:
+      image: python:${{ matrix.python-version }}-alpine
+
+    steps:
+      - name: Install git (required for setuptools-scm)
+        shell: sh
+        run: |
+          set -eu
+          apk add --no-cache git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install system build dependencies
+        shell: sh
+        run: |
+          set -eu
+          apk add --no-cache build-base linux-headers
+
+      - name: Install Python build dependencies
+        shell: sh
+        run: |
+          set -eu
+          python -m pip install -U pip setuptools wheel tox
+
+      - name: Install package
+        shell: sh
+        run: |
+          set -eu
+          python -m pip install -U .
+
+      - name: Run unit tests (verbose)
+        shell: sh
+        run: |
+          set -eu
+          python -X dev -m unittest discover -v
+
   publish:
     name: Publish to PyPI
-    needs: [test]
+    needs: [test, test-alpine]
     runs-on: ubuntu-latest
 
     # Publish only on version tags like v0.0.1
@@ -80,8 +129,8 @@ jobs:
       - name: Build manylinux wheels
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
-          CIBW_SKIP: "pp* *-musllinux_*"
           CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_TEST_COMMAND: "python -m unittest discover -v -s {project}/tests"
         run: |
           python -m cibuildwheel --output-dir wheelhouse
           mkdir -p dist
