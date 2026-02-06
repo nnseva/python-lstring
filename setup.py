@@ -68,7 +68,7 @@ setup(
     use_scm_version=True,
     python_requires='>=3.10',
     # build-time requirements are declared in pyproject.toml
-    description='True Python lazy string (rope-like) implemented as a C++ extension',
+    description='True Python lazy string implemented as a C++ extension',
     author='Vsevolod Novikov',
     author_email='nnseva@gmail.com',
     url='https://github.com/nnseva/python-lstring',
